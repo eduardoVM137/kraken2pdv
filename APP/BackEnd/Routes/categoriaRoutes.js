@@ -15,7 +15,7 @@ import { categoriaSchema } from "../middlewares/validarCategoria.js";
 const router = express.Router();
 
 // Crear categoría (requiere token y validación de datos)
-router.post("/", authMiddleware, validateRequest(categoriaSchema), insertarCategoriaController);
+router.post("/", validateRequest(categoriaSchema), insertarCategoriaController);
 
 // Obtener todas las categorías activas
 router.get("/activos", mostrarCategoriasController);

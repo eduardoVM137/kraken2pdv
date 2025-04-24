@@ -5,14 +5,36 @@ import {
   eliminarDetalleProductoController,
   mostrarDetalleProductosController,
   buscarDetalleProductoIdController,
-} from "../controllers/detalle_Producto_Controller.js";
+} from "../controllers/detalle_ProductoController.js";
+import validateRequest from "../middlewares/validateRequest.js";
+import { detalleProductoSchema } from "../middlewares/validarDetalleProducto.js";
+import authMiddleware from "../middlewares/authMiddleware.js";
 
 const router = express.Router();
 
-router.post("/", insertarDetalleProductoController);
-router.put("/:id", editarDetalleProductoController);
-router.delete("/:id", eliminarDetalleProductoController);
-router.get("/", mostrarDetalleProductosController);
-router.get("/:id", buscarDetalleProductoIdController);
+// Crear
+router.post(
+  "/",
+  
+  validateRequest(detalleProductoSchema),
+  insertarDetalleProductoController
+);
+
+// Leer todo
+router.get("/", authMiddleware, mostrarDetalleProductosController);
+
+// Leer uno
+router.get("/:id", authMiddleware, buscarDetalleProductoIdController);
+
+// Actualizar
+router.put(
+  "/:id",
+  authMiddleware,
+  validateRequest(detalleProductoSchema),
+  editarDetalleProductoController
+);
+
+// Eliminar
+router.delete("/:id", authMiddleware, eliminarDetalleProductoController);
 
 export default router;

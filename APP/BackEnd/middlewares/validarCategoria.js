@@ -11,10 +11,10 @@ const categoriaSchema = Joi.object({
   descripcion: Joi.string().max(200).allow('').optional().messages({
     'string.max': 'La descripción no debe exceder 200 caracteres',
   }),
-  activo: Joi.boolean().optional().messages({
-    'boolean.base': 'El valor de activo debe ser booleano',
+  estado: Joi.boolean().optional().messages({
+    'boolean.base': 'El valor de estado debe ser booleano',
   }),
-  state_id: Joi.number().integer().optional().messages({
+  state_id: Joi.number().integer().allow(null).optional().messages({
     'number.base': 'El ID de estado debe ser un número',
     'number.integer': 'El ID de estado debe ser un número entero',
   }),

@@ -10,9 +10,17 @@ export const mostrarCategoriasService = async () => {
 
 // 🔹 Insertar categoría
 export const insertarCategoriaService = async (data) => {
-  const resultado = await db.insert(Categoria).values(data);
-  if (resultado.affectedRows === 0) return null;
-  return { ...data };
+  try {
+    const [insertado] = await db
+      .insert(Categoria)
+      .values(data)
+      .returning(); // Trae todos los campos generados (como el ID)
+
+    return insertado;
+  } catch (error) {
+    console.error("Error al insertar categoría:", error);
+    throw new Error("No se pudo insertar la categoría");
+  }
 };
 
 // 🔹 Editar categoría

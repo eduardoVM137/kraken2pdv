@@ -1,6 +1,9 @@
-import { mysqlTable, serial, varchar } from 'drizzle-orm/mysql-core';
+import { pgTable, serial, varchar, timestamp, integer } from "drizzle-orm/pg-core";
 
-export const State = mysqlTable('state', {
-  idstate: serial('idstate').primaryKey(),
-  nombre: varchar('nombre', { length: 100 }).notNull(),
+export const State = pgTable("state", {
+  id: serial("id").primaryKey(),
+  tabla_afectada: varchar("tabla_afectada", { length: 100 }),
+  id_tabla: integer("id_tabla"),
+  estado: varchar("estado", { length: 50 }),
+  fecha: timestamp("fecha"),
 });

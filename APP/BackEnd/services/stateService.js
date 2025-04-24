@@ -20,3 +20,8 @@ export const eliminarStateService = async (idstate) => {
 export const mostrarStatesService = async () => {
   return await db.select().from(State).execute();
 };
+export const insertarStateServiceTx = async (tx, data) => {
+  const [insertado] = await tx.insert(State).values(data).returning();
+  return insertado;
+};
+
