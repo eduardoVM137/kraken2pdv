@@ -1,18 +1,16 @@
-
-import express from 'express';
+import express from "express";
 import {
+  mostrarInventariosController,
   insertarInventarioController,
   editarInventarioController,
   eliminarInventarioController,
-  mostrarInventariosController,
-} from '../controllers/inventarioController.js';
-import authMiddleware from '../middlewares/authMiddleware.js';
+} from "../controllers/inventarioController.js";
 
 const router = express.Router();
 
-router.post('/', authMiddleware, insertarInventarioController);
-router.put('/:id', authMiddleware, editarInventarioController);
-router.delete('/:id', authMiddleware, eliminarInventarioController);
-router.get('/', authMiddleware, mostrarInventariosController);
+router.get("/", mostrarInventariosController);
+router.post("/", insertarInventarioController);
+router.put("/:id", editarInventarioController);
+router.delete("/:id", eliminarInventarioController);
 
 export default router;

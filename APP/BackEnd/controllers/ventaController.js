@@ -1,15 +1,23 @@
-
 import {
+  mostrarVentasService,
   insertarVentaService,
   editarVentaService,
   eliminarVentaService,
-  mostrarVentasService,
-} from '../services/ventaService.js';
+} from "../services/ventaService.js";
+
+export const mostrarVentasController = async (req, res, next) => {
+  try {
+    const data = await mostrarVentasService();
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
 
 export const insertarVentaController = async (req, res, next) => {
   try {
-    const resultado = await insertarVentaService(req.body);
-    res.status(201).json(resultado);
+    const exito = await insertarVentaService(req.body);
+    res.status(exito ? 201 : 400).json({ message: exito ? "Creado" : "Falló" });
   } catch (error) {
     next(error);
   }
@@ -17,9 +25,9 @@ export const insertarVentaController = async (req, res, next) => {
 
 export const editarVentaController = async (req, res, next) => {
   try {
-    const { idventa, ...data } = req.body;
-    const resultado = await editarVentaService(idventa, data);
-    res.status(200).json(resultado);
+    const id = Number(req.params.id);
+    const exito = await editarVentaService(id, req.body);
+    res.status(exito ? 200 : 404).json({ message: exito ? "Actualizado" : "No encontrado" });
   } catch (error) {
     next(error);
   }
@@ -27,18 +35,9 @@ export const editarVentaController = async (req, res, next) => {
 
 export const eliminarVentaController = async (req, res, next) => {
   try {
-    const { idventa } = req.params;
-    const resultado = await eliminarVentaService(idventa);
-    res.status(200).json(resultado);
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const mostrarVentasController = async (req, res, next) => {
-  try {
-    const resultado = await mostrarVentasService();
-    res.status(200).json(resultado);
+    const id = Number(req.params.id);
+    const exito = await eliminarVentaService(id);
+    res.status(exito ? 200 : 404).json({ message: exito ? "Eliminado" : "No encontrado" });
   } catch (error) {
     next(error);
   }

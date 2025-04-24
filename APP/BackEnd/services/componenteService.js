@@ -1,26 +1,22 @@
-import { db } from '../config/database.js';
-import { Componente } from '../models/componente.js';
-
-export const insertarComponenteService = async (datos) => {
-  return await db.insert(Componente).values({
-    idproducto: datos.idproducto,
-    idproducto_item: datos.idproducto_item,
-    cantidad: datos.cantidad,
-  }).execute();
-};
-
-export const editarComponenteService = async (idcomponente, datos) => {
-  return await db.update(Componente).set({
-    idproducto: datos.idproducto,
-    idproducto_item: datos.idproducto_item,
-    cantidad: datos.cantidad,
-  }).where(Componente.idcomponente.eq(idcomponente)).execute();
-};
-
-export const eliminarComponenteService = async (idcomponente) => {
-  return await db.deleteFrom(Componente).where(Componente.idcomponente.eq(idcomponente)).execute();
-};
+import { db } from "../config/database.js";
+import { Componente } from "../models/componente.js";
+import { eq } from "drizzle-orm";
 
 export const mostrarComponentesService = async () => {
-  return await db.select().from(Componente).execute();
+  return await db.select().from(Componente);
+};
+
+export const insertarComponenteService = async (data) => {
+  const [nuevo] = await db.insert(Componente).values(data).returning();
+  return !!nuevo;
+};
+
+export const editarComponenteService = async (id, data) => {
+  const [actualizado] = await db.update(Componente).set(data).where(eq(Componente.id, id)).returning();
+  return !!actualizado;
+};
+
+export const eliminarComponenteService = async (id) => {
+  const eliminado = await db.delete(Componente).where(eq(Componente.id, id)).returning();
+  return eliminado.length > 0;
 };

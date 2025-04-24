@@ -1,18 +1,16 @@
-
-import express from 'express';
+import express from "express";
 import {
+  mostrarVentasController,
   insertarVentaController,
   editarVentaController,
   eliminarVentaController,
-  mostrarVentasController,
-} from '../controllers/ventaController.js';
-import authMiddleware from '../middlewares/authMiddleware.js';
+} from "../controllers/ventaController.js";
 
 const router = express.Router();
 
-router.post('/', authMiddleware, insertarVentaController);
-router.put('/:id', authMiddleware, editarVentaController);
-router.delete('/:id', authMiddleware, eliminarVentaController);
-router.get('/', authMiddleware, mostrarVentasController);
+router.get("/", mostrarVentasController);
+router.post("/", insertarVentaController);
+router.put("/:id", editarVentaController);
+router.delete("/:id", eliminarVentaController);
 
 export default router;

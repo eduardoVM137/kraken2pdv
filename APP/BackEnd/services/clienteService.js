@@ -1,38 +1,22 @@
-import { db } from '../config/database.js';
-import { Cliente } from '../models/cliente.js';
-
-export const insertarClienteService = async (datos) => {
-  return await db.insert(Cliente).values({
-    codigo_cliente: datos.codigo_cliente,
-    nombre: datos.nombre,
-    apellidos: datos.apellidos,
-    direccion: datos.direccion,
-    telefono: datos.telefono,
-    correo: datos.correo,
-    fecha_nacimiento: datos.fecha_nacimiento,
-    comentarios: datos.comentarios,
-    foto: datos.foto,
-  }).execute();
-};
-
-export const editarClienteService = async (idcliente, datos) => {
-  return await db.update(Cliente).set({
-    codigo_cliente: datos.codigo_cliente,
-    nombre: datos.nombre,
-    apellidos: datos.apellidos,
-    direccion: datos.direccion,
-    telefono: datos.telefono,
-    correo: datos.correo,
-    fecha_nacimiento: datos.fecha_nacimiento,
-    comentarios: datos.comentarios,
-    foto: datos.foto,
-  }).where(Cliente.idcliente.eq(idcliente)).execute();
-};
-
-export const eliminarClienteService = async (idcliente) => {
-  return await db.deleteFrom(Cliente).where(Cliente.idcliente.eq(idcliente)).execute();
-};
+import { db } from "../config/database.js";
+import { Cliente } from "../models/cliente.js";
+import { eq } from "drizzle-orm";
 
 export const mostrarClientesService = async () => {
-  return await db.select().from(Cliente).execute();
+  return await db.select().from(Cliente);
+};
+
+export const insertarClienteService = async (data) => {
+  const [nuevo] = await db.insert(Cliente).values(data).returning();
+  return !!nuevo;
+};
+
+export const editarClienteService = async (id, data) => {
+  const [actualizado] = await db.update(Cliente).set(data).where(eq(Cliente.id, id)).returning();
+  return !!actualizado;
+};
+
+export const eliminarClienteService = async (id) => {
+  const eliminado = await db.delete(Cliente).where(eq(Cliente.id, id)).returning();
+  return eliminado.length > 0;
 };

@@ -1,21 +1,21 @@
-// routes/productoRoutes.js
-
-import express from 'express';
-import { insertarProductoController, mostrarProductosController } from '../controllers/productosController.js';
+import express from "express";
+import {
+  insertarProductoController,
+  editarProductoController,
+  eliminarProductoController,
+  mostrarProductosController,
+  buscarProductoIdController,
+  buscarProductoNombreDescripcionController,
+} from "../controllers/productosController.js";
 import authMiddleware from '../middlewares/authMiddleware.js';
-import validarProducto from '../middlewares/validarProducto.js';
-
 const router = express.Router();
 
-// Ruta para agregar un producto, requiere autenticación y validación de datos
-router.post('/',  validarProducto, insertarProductoController);
-
-// Ruta para listar productos activos, solo requiere autenticación
-router.get('/activos',  mostrarProductosController);
+router.post("/", insertarProductoController);
+router.put("/:id", editarProductoController);
+router.delete("/:id", eliminarProductoController);
+router.get("/", mostrarProductosController);
+router.get("/buscar", buscarProductoNombreDescripcionController);
+router.get("/:id", buscarProductoIdController);
 
 export default router;
-
-
-
-
 

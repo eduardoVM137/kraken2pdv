@@ -1,23 +1,23 @@
-// middlewares/validarCategoria.js
 import Joi from 'joi';
 
-const validarCategoria = (req, res, next) => {
-  const schema = Joi.object({
-    nombre: Joi.string().min(3).max(100).required().messages({
-      'any.required': 'El nombre es obligatorio',
-      'string.min': 'El nombre debe tener al menos 3 caracteres',
-      'string.max': 'El nombre no debe exceder 100 caracteres',
-    }),
-    descripcion: Joi.string().max(200).optional().messages({
-      'string.max': 'La descripción no debe exceder 200 caracteres',
-    }),
-  });
+const categoriaSchema = Joi.object({
+  nombre: Joi.string().min(3).max(100).required().messages({
+    'string.base': 'El nombre debe ser un texto',
+    'string.empty': 'El nombre no puede estar vacío',
+    'string.min': 'El nombre debe tener al menos 3 caracteres',
+    'string.max': 'El nombre no debe exceder 100 caracteres',
+    'any.required': 'El nombre es obligatorio',
+  }),
+  descripcion: Joi.string().max(200).allow('').optional().messages({
+    'string.max': 'La descripción no debe exceder 200 caracteres',
+  }),
+  activo: Joi.boolean().optional().messages({
+    'boolean.base': 'El valor de activo debe ser booleano',
+  }),
+  state_id: Joi.number().integer().optional().messages({
+    'number.base': 'El ID de estado debe ser un número',
+    'number.integer': 'El ID de estado debe ser un número entero',
+  }),
+});
 
-  const { error } = schema.validate(req.body);
-  if (error) {
-    return res.status(400).json({ error: error.details[0].message });
-  }
-  next();
-};
-
-export default validarCategoria;
+export { categoriaSchema };

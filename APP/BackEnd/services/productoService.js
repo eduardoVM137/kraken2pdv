@@ -1,27 +1,52 @@
-import { db } from '../config/database.js';
-import { Producto } from '../models/producto.js';
+import { db } from "../config/database.js";
+import { Producto } from "../models/producto.js";
+import { eq, like, or } from "drizzle-orm";
 
-// Crear un nuevo producto (INSERT)
+// Insertar producto
 export const insertarProductoService = async (data) => {
-    return await db.insert(Producto).values(data).execute();
+  const result = await db.insert(Producto).values(data).returning();
+  return result[0] || null;
 };
 
-// Obtener todos los productos  (SELECT)
+// Editar producto
+export const editarProductoService = async (idproducto, data) => {
+  const result = await db.update(Producto)
+    .set(data)
+    .where(eq(Producto.idproducto, idproducto))
+    .returning();
+
+  return result[0] || null;
+};
+
+// Eliminar producto
+export const eliminarProductoService = async (idproducto) => {
+  return await db.delete(Producto)
+    .where(eq(Producto.idproducto, idproducto));
+};
+
+// Mostrar todos
 export const mostrarProductosService = async () => {
-    return await db.select().from(Producto).execute();
+  return await db.select().from(Producto);
 };
 
-// Actualizar un producto (UPDATE)
-export const s_editarProducto = async (id, data) => {
-    return await db.update(Producto).set(data).where(Producto.id.eq(id)).execute();
+// Buscar por ID
+export const buscarProductoIdService = async (idproducto) => {
+  const [producto] = await db.select()
+    .from(Producto)
+    .where(eq(Producto.idproducto, idproducto))
+    .limit(1);
+
+  return producto || null;
 };
 
-// Eliminar un producto (DELETE)
-export const s_eliminarProducto = async (id) => {
-    return await db.deleteFrom(Producto).where(Producto.id.eq(id)).execute();
-};
-
-export const s_mostrarProductosActivos = async () => {//metodo de prueba
-    const [results] = await db.execute('select * from productos');
-    return results;
+// Buscar por nombre o descripción
+export const buscarProductoNombreDescripcionService = async (busqueda) => {
+  return await db.select()
+    .from(Producto)
+    .where(
+      or(
+        like(Producto.nombre, `%${busqueda}%`),
+        like(Producto.descripcion, `%${busqueda}%`)
+      )
+    );
 };

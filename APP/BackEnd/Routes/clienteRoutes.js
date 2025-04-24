@@ -1,17 +1,16 @@
-import express from 'express';
+import express from "express";
 import {
+  mostrarClientesController,
   insertarClienteController,
   editarClienteController,
   eliminarClienteController,
-  mostrarClientesController,
-} from '../controllers/clienteController.js';
-import authMiddleware from '../middlewares/authMiddleware.js';
+} from "../controllers/clienteController.js";
 
 const router = express.Router();
 
-router.post('/', authMiddleware, insertarClienteController);
-router.put('/:id', authMiddleware, editarClienteController);
-router.delete('/:id', authMiddleware, eliminarClienteController);
-router.get('/', authMiddleware, mostrarClientesController);
+router.get("/", mostrarClientesController);
+router.post("/", insertarClienteController);
+router.put("/:id", editarClienteController);
+router.delete("/:id", eliminarClienteController);
 
 export default router;

@@ -1,9 +1,10 @@
 // models/categoria.js
-import { mysqlTable, serial, int, varchar } from 'drizzle-orm/mysql-core';
+import { pgTable, serial, varchar, boolean, integer, text } from "drizzle-orm/pg-core";
 
-export const Categoria = mysqlTable('categoria', {
-  idcategoria: serial('idcategoria').primaryKey(),
-  idstate: int('idstate'),
-  nombre: varchar('nombre', { length: 100 }),
-  descripcion: varchar('descripcion', { length: 200 }),
+export const Categoria = pgTable("categoria", {
+  id: serial("id").primaryKey(),
+  nombre: varchar("nombre", { length: 100 }).notNull(),
+  descripcion: text("descripcion"),
+  estado: boolean("estado").default(true),
+  state_id: integer("state_id"),
 });

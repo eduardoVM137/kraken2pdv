@@ -1,40 +1,22 @@
-import { db } from '../config/database.js';
-import { Empleado } from '../models/empleado.js';
-
-export const insertarEmpleadoService = async (datos) => {
-  return await db.insert(Empleado).values({
-    codigo_empleado: datos.codigo_empleado,
-    nombre: datos.nombre,
-    apellidos: datos.apellidos,
-    direccion: datos.direccion,
-    telefono: datos.telefono,
-    correo: datos.correo,
-    fecha_nacimiento: datos.fecha_nacimiento,
-    comentarios: datos.comentarios,
-    foto: datos.foto,
-    idstate: datos.idstate,
-  }).execute();
-};
-
-export const editarEmpleadoService = async (idempleado, datos) => {
-  return await db.update(Empleado).set({
-    codigo_empleado: datos.codigo_empleado,
-    nombre: datos.nombre,
-    apellidos: datos.apellidos,
-    direccion: datos.direccion,
-    telefono: datos.telefono,
-    correo: datos.correo,
-    fecha_nacimiento: datos.fecha_nacimiento,
-    comentarios: datos.comentarios,
-    foto: datos.foto,
-    idstate: datos.idstate,
-  }).where(Empleado.idempleado.eq(idempleado)).execute();
-};
-
-export const eliminarEmpleadoService = async (idempleado) => {
-  return await db.deleteFrom(Empleado).where(Empleado.idempleado.eq(idempleado)).execute();
-};
+import { db } from "../config/database.js";
+import { Empleado } from "../models/empleado.js";
+import { eq } from "drizzle-orm";
 
 export const mostrarEmpleadosService = async () => {
-  return await db.select().from(Empleado).execute();
+  return await db.select().from(Empleado);
+};
+
+export const insertarEmpleadoService = async (data) => {
+  const [nuevo] = await db.insert(Empleado).values(data).returning();
+  return !!nuevo;
+};
+
+export const editarEmpleadoService = async (id, data) => {
+  const [actualizado] = await db.update(Empleado).set(data).where(eq(Empleado.id, id)).returning();
+  return !!actualizado;
+};
+
+export const eliminarEmpleadoService = async (id) => {
+  const eliminado = await db.delete(Empleado).where(eq(Empleado.id, id)).returning();
+  return eliminado.length > 0;
 };

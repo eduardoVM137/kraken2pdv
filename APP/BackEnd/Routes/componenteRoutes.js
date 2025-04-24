@@ -1,18 +1,16 @@
-import express from 'express';
+import express from "express";
 import {
+  mostrarComponentesController,
   insertarComponenteController,
   editarComponenteController,
   eliminarComponenteController,
-  mostrarComponentesController,
-} from '../controllers/componenteController.js';
-import validarComponente from '../middlewares/validarComponente.js';
-import authMiddleware from '../middlewares/authMiddleware.js';
+} from "../controllers/componenteController.js";
 
 const router = express.Router();
 
-router.post('/', authMiddleware, validarComponente, insertarComponenteController);
-router.put('/:id', authMiddleware, validarComponente, editarComponenteController);
-router.delete('/:id', authMiddleware, eliminarComponenteController);
-router.get('/', authMiddleware, mostrarComponentesController);
+router.get("/", mostrarComponentesController);
+router.post("/", insertarComponenteController);
+router.put("/:id", editarComponenteController);
+router.delete("/:id", eliminarComponenteController);
 
 export default router;

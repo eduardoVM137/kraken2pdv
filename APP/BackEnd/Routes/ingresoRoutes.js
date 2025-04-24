@@ -1,18 +1,16 @@
-
-import express from 'express';
+import express from "express";
 import {
+  mostrarIngresosController,
   insertarIngresoController,
   editarIngresoController,
   eliminarIngresoController,
-  mostrarIngresosController,
-} from '../controllers/ingresoController.js';
-import authMiddleware from '../middlewares/authMiddleware.js';
+} from "../controllers/ingresoController.js";
 
 const router = express.Router();
 
-router.post('/', authMiddleware, insertarIngresoController);
-router.put('/:id', authMiddleware, editarIngresoController);
-router.delete('/:id', authMiddleware, eliminarIngresoController);
-router.get('/', authMiddleware, mostrarIngresosController);
+router.get("/", mostrarIngresosController);
+router.post("/", insertarIngresoController);
+router.put("/:id", editarIngresoController);
+router.delete("/:id", eliminarIngresoController);
 
 export default router;
