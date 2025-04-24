@@ -1,0 +1,37 @@
+# Node.js
+node_modules/
+.env
+.env.*  # por si hay .env.local, .env.dev, etc.
+*.log
+logs/
+
+# Build/Dist
+dist/
+build/
+
+# Frontend
+.FrondEnd/vendor/
+.FrondEnd/scss/
+.FrondEnd/css/
+.FrondEnd/js/*.map
+
+# IDEs/OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Database / Backups / Imágenes
+/Base de Datos/
+*.bak
+*.sql
+*.png
+*.jpg
+*.jpeg
+*.graphml
+*.gpg
+*.pgerd
+*.txt
+*.ipynb
+
+# Otros
+.travis.yml

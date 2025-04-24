@@ -1,0 +1,5 @@
+    <!-- <h2><%= titulo %></h2> -->
+
+<!-- <%- include("template/footer") %> -->
+
+<!-- <%- include("template/cabecera", {tituloWeb: 'Página de inicio'}) %> -->
