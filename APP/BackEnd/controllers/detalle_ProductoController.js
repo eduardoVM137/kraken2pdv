@@ -8,15 +8,29 @@ import {
   mostrarDetalleProductosService,
   buscarDetalleProductoIdService,
 } from "../services/detalle_ProductoService.js";
+import { insertarMovimientoStockServiceTx } from "../services/movimientoStockService.js";
 import { insertarStateServiceTx } from "../services/stateService.js";
 import {
   insertarAtributoServiceTx,
   insertarDetalleAtributosServiceTx
 } from "../services/atributoService.js";
-// Crear
+
+import { insertarInventarioDesdeMovimientoTx } from "../services/inventarioService.js";
+import { insertarPrecioDesdeMovimientoTx } from "../services/precioService.js";
+import { insertarProductoUbicacionDesdeMovimientoTx } from "../services/producto_ubicacionService.js";
+
+
+//crassd
 export const insertarDetalleProductoController = async (req, res, next) => {
   try {
-    const { atributo, detalles_atributo = [], ...resto } = req.body;
+    const {
+      atributo,
+      detalles_atributo = [],
+      cantidad,
+      precio_costo,
+      ubicacion_id,
+      ...resto
+    } = req.body;
 
     const resultado = await db.transaction(async (tx) => {
       // 1. Insertar estado
@@ -40,12 +54,7 @@ export const insertarDetalleProductoController = async (req, res, next) => {
           await insertarDetalleAtributosServiceTx(tx, detallesConID);
         }
       }
-      console.log("Datos para insertar detalle_producto:", {
-        ...resto,
-        atributo_id,
-        state_id: state.id,
-      });
-      
+
       // 3. Insertar detalle_producto
       const detalleInsertado = await insertarDetalleProductoServiceTx(tx, {
         ...resto,
@@ -53,6 +62,57 @@ export const insertarDetalleProductoController = async (req, res, next) => {
         state_id: state.id,
       });
       if (!detalleInsertado?.id) throw new Error("No se pudo insertar el detalle del producto");
+
+      // 4. Insertar movimiento stock inicial si aplica
+      if (cantidad && ubicacion_id) {
+        const movimiento = await insertarMovimientoStockServiceTx(tx, {
+          empresa_id: req.empresa_id || 1,
+          producto_id: resto.producto_id,
+          detalle_producto_id: detalleInsertado.id,
+          ubicacion_id,
+          cantidad,
+          precio_costo: precio_costo || null,
+          tipo_movimiento: 'ajuste_inicial',
+          motivo: 'Alta inicial del detalle producto',
+          usuario_id: req.usuario_id || null,
+        });
+
+        if (!movimiento?.id) throw new Error("No se pudo registrar el movimiento de stock");
+
+        // 5. Insertar inventario
+        await insertarInventarioDesdeMovimientoTx(tx, {
+          detalle_producto_id: detalleInsertado.id,
+          cantidad,
+          precio_costo,
+          ubicacion_fisica_id: ubicacion_id,
+          proveedor_id: null,
+          state_id: state.id
+        });
+
+        // 6. Insertar precio base
+        await insertarPrecioDesdeMovimientoTx(tx, {
+          detalle_producto_id: detalleInsertado.id,
+          ubicacion_fisica_id: ubicacion_id,
+          precio_venta: 0,
+          vigente: true,
+          fecha_inicio: new Date(),
+          cliente_id: null,
+          tipo_cliente_id: null,
+          cantidad_minima: 0,
+          precio_base: 0,
+          prioridad: 1
+        });
+
+        // 7. Insertar relación producto-ubicación
+        await insertarProductoUbicacionDesdeMovimientoTx(tx, {
+          detalle_producto_id: detalleInsertado.id,
+          inventario_id: null,
+          negocio_id: req.negocio_id || 1,
+          ubicacion_fisica_id: ubicacion_id,
+          precio_id: null,
+          compartir: false
+        });
+      }
 
       return detalleInsertado;
     });
@@ -63,6 +123,71 @@ export const insertarDetalleProductoController = async (req, res, next) => {
     next(error);
   }
 };
+
+
+// Crear
+// export const insertarDetalleProductoController = async (req, res, next) => {
+//   try {
+//     const { atributo, detalles_atributo = [], ...resto } = req.body;
+
+//     const resultado = await db.transaction(async (tx) => {
+//       // 1. Insertar estado
+//       const state = await insertarStateServiceTx(tx, {
+//         tabla_afectada: "detalle_producto",
+//       });
+//       if (!state?.id) throw new Error("No se pudo generar el estado");
+
+//       // 2. Insertar atributo y detalle_atributo si existe
+//       let atributo_id = null;
+//       if (atributo?.nombre) {
+//         const atributoInsertado = await insertarAtributoServiceTx(tx, atributo);
+//         if (!atributoInsertado?.id) throw new Error("No se pudo insertar el atributo");
+//         atributo_id = atributoInsertado.id;
+
+//         if (Array.isArray(detalles_atributo) && detalles_atributo.length > 0) {
+//           const detallesConID = detalles_atributo.map((detalle) => ({
+//             ...detalle,
+//             id_atributo: atributoInsertado.id,
+//           }));
+//           await insertarDetalleAtributosServiceTx(tx, detallesConID);
+//         }
+//       }
+
+//       // 3. Insertar detalle_producto
+//       const detalleInsertado = await insertarDetalleProductoServiceTx(tx, {
+//         ...resto,
+//         atributo_id,
+//         state_id: state.id,
+//       });
+//       if (!detalleInsertado?.id) throw new Error("No se pudo insertar el detalle del producto");
+
+//       // 4. Insertar movimiento stock inicial si aplica
+//       if (resto.cantidad && resto.ubicacion_id) {
+//         const movimiento = await insertarMovimientoStockServiceTx(tx, {
+//           empresa_id: req.empresa_id || 1,
+//           producto_id: resto.producto_id,
+//           detalle_producto_id: detalleInsertado.id,
+//           ubicacion_id: resto.ubicacion_id,
+//           cantidad: resto.cantidad,
+//           precio_costo: resto.precio_costo || null,
+//           tipo_movimiento: 'ajuste_inicial',
+//           motivo: 'Alta inicial del detalle producto',
+//           usuario_id: req.usuario_id || null,
+//         });
+
+//         if (!movimiento?.id) throw new Error("No se pudo registrar el movimiento de stock");
+//       }
+
+//       return detalleInsertado;
+//     });
+
+//     return res.status(201).json({ message: "Detalle producto creado", data: resultado });
+//   } catch (error) {
+//     console.error("Error en transacción de detalle_producto:", error);
+//     next(error);
+//   }
+// };
+
 
  // Crear 1
 // export const insertarDetalleProductoController = async (req, res, next) => {

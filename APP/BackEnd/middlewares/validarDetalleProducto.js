@@ -36,7 +36,21 @@ export const detalleProductoSchema = Joi.object({
     'number.integer': 'El ID del estado debe ser un número entero',
   }),
 
-  // Nuevos campos aceptados
+  // 👇 Campos nuevos (stock inicial)
+  cantidad: Joi.number().positive().optional().messages({
+    'number.base': 'La cantidad debe ser un número',
+    'number.positive': 'La cantidad debe ser mayor a 0',
+  }),
+  ubicacion_id: Joi.number().integer().optional().messages({
+    'number.base': 'La ubicación debe ser un número',
+    'number.integer': 'La ubicación debe ser un número entero',
+  }),
+  precio_costo: Joi.number().precision(2).optional().messages({
+    'number.base': 'El precio de costo debe ser un número',
+  }),
+
+  tipo_movimiento: Joi.string().valid('ajuste_inicial').optional(),
+  // 👇 Atributos opcionales
   atributo: Joi.object({
     nombre: Joi.string().max(100).required().messages({
       'string.base': 'El nombre del atributo debe ser un texto',
@@ -56,6 +70,15 @@ export const detalleProductoSchema = Joi.object({
       })
     )
     .optional(),
-});
-
-export default detalleProductoSchema;
+  })
+  .custom((value, helpers) => {
+    // Validar si es ajuste inicial
+    if (value.tipo_movimiento === 'ajuste_inicial') {
+      if (!value.cantidad) return helpers.message('"cantidad" es obligatoria para ajuste_inicial');
+      if (!value.ubicacion_id) return helpers.message('"ubicacion_id" es obligatoria para ajuste_inicial');
+      if (typeof value.precio_costo !== 'number') return helpers.message('"precio_costo" es obligatoria para ajuste_inicial');
+    }
+    return value;
+  }, 'Condición para ajuste_inicial');
+  
+  export default detalleProductoSchema;

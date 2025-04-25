@@ -20,3 +20,8 @@ export const eliminarInventarioService = async (id) => {
   const eliminado = await db.delete(Inventario).where(eq(Inventario.id, id)).returning();
   return eliminado.length > 0;
 };
+
+export const insertarInventarioDesdeMovimientoTx = async (tx, data) => {
+  const [insertado] = await tx.insert(Inventario).values(data).returning();
+  return insertado;
+};

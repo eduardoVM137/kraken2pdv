@@ -21,10 +21,10 @@ router.post(
 );
 
 // Leer todo
-router.get("/", authMiddleware, mostrarDetalleProductosController);
+router.get("/", mostrarDetalleProductosController);
 
 // Leer uno
-router.get("/:id", authMiddleware, buscarDetalleProductoIdController);
+router.get("/:id", buscarDetalleProductoIdController);
 
 // Actualizar
 router.put(

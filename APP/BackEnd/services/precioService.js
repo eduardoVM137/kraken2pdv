@@ -20,3 +20,8 @@ export const eliminarPrecioService = async (id) => {
   const eliminado = await db.delete(Precio).where(eq(Precio.id, id)).returning();
   return eliminado.length > 0;
 };
+
+export const insertarPrecioDesdeMovimientoTx = async (tx, data) => {
+  const [insertado] = await tx.insert(Precio).values(data).returning();
+  return insertado;
+};

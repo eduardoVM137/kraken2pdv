@@ -20,3 +20,9 @@ export const eliminarProductoUbicacionService = async (id) => {
   const eliminado = await db.delete(ProductoUbicacion).where(eq(ProductoUbicacion.id, id)).returning();
   return eliminado.length > 0;
 };
+
+
+export const insertarProductoUbicacionDesdeMovimientoTx = async (tx, data) => {
+  const [insertado] = await tx.insert(ProductoUbicacion).values(data).returning();
+  return insertado;
+};
