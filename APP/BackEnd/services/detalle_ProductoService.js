@@ -48,16 +48,32 @@ export const mostrarDetalleProductosService = async () => {
 };
 
 // 🔹 Buscar por ID
-export const buscarDetalleProductoIdService = async (id) => {
-  const [detalle] = await db
-    .select()
-    .from(DetalleProducto)
-    .where(eq(DetalleProducto.id, id))
-    .limit(1);
-  return detalle ?? null;
-};
+// export const buscarDetalleProductoIdService = async (id) => {
+//   const [detalle] = await db
+//     .select()
+//     .from(DetalleProducto)
+//     .where(eq(DetalleProducto.id, id))
+//     .limit(1);
+//   return detalle ?? null;
+// };
 
 export const insertarDetalleProductoServiceTx = async (tx, data) => {
   const [insertado] = await tx.insert(DetalleProducto).values(data).returning();
   return insertado;
+};
+
+/**
+ * Fetches a single DetalleProducto record by its ID.
+ * 
+ * @param {number} id - The ID of the DetalleProducto to retrieve.
+ * @returns {Promise<Object|null>} A promise that resolves to the DetalleProducto object if found, or null if not found.
+ * @throws Will throw an error if the database query fails.
+ */
+
+export const buscarDetalleProductoIdService = async (id) => {
+  return await db
+    .select()
+    .from(DetalleProducto)
+    .where(eq(DetalleProducto.id, id))
+    .then(res => res[0]);
 };

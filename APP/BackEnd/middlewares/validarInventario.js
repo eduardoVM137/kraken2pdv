@@ -1,17 +1,23 @@
 import Joi from 'joi';
 
 const inventarioSchema = Joi.object({
-  // TODO: define aquí los campos según el modelo
+  detalle_producto_id: Joi.number().integer().required().messages({
+    'number.base': 'El ID del detalle de producto debe ser un número',
+    'any.required': 'El ID del detalle de producto es obligatorio',
+  }),
+  stock_actual: Joi.number().precision(2).required().messages({
+    'number.base': 'El stock actual debe ser un número',
+    'any.required': 'El stock actual es obligatorio',
+  }),
+  stock_minimo: Joi.number().precision(2).optional().allow(null),
+  precio_costo: Joi.number().precision(2).optional().allow(null),
+  actualizado_en: Joi.date().optional().allow(null),
+  ubicacion_fisica_id: Joi.number().integer().required().messages({
+    'number.base': 'La ubicación física debe ser un número',
+    'any.required': 'La ubicación física es obligatoria',
+  }),
+  proveedor_id: Joi.number().integer().optional().allow(null),
+  state_id: Joi.number().integer().optional().allow(null),
 });
 
-const validarInventario = (req, res, next) => {
-  const { error } = inventarioSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    const errores = error.details.map(e => e.message);
-    return res.status(400).json({ errores });
-  }
-  next();
-};
-
-export default validarInventario;
 export { inventarioSchema };

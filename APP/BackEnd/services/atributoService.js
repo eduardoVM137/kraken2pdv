@@ -30,3 +30,12 @@ export const insertarAtributoServiceTx = async (tx, data) => {
 export const insertarDetalleAtributosServiceTx = async (tx, dataArray) => {
   return await tx.insert(DetalleAtributo).values(dataArray).returning();
 };
+
+ 
+export const buscarAtributoPorIdService = async (id) => {
+  return await db
+    .select()
+    .from(Atributo)
+    .where(eq(Atributo.id, id))
+    .then(res => res[0]);
+};

@@ -1,4 +1,5 @@
 import Joi from 'joi';
+import { etiquetaProductoSchema } from './validarEtiquetaProducto.js';
 
 export const detalleProductoSchema = Joi.object({
   producto_id: Joi.number().integer().required().messages({
@@ -36,21 +37,8 @@ export const detalleProductoSchema = Joi.object({
     'number.integer': 'El ID del estado debe ser un número entero',
   }),
 
-  // 👇 Campos nuevos (stock inicial)
-  cantidad: Joi.number().positive().optional().messages({
-    'number.base': 'La cantidad debe ser un número',
-    'number.positive': 'La cantidad debe ser mayor a 0',
-  }),
-  ubicacion_id: Joi.number().integer().optional().messages({
-    'number.base': 'La ubicación debe ser un número',
-    'number.integer': 'La ubicación debe ser un número entero',
-  }),
-  precio_costo: Joi.number().precision(2).optional().messages({
-    'number.base': 'El precio de costo debe ser un número',
-  }),
-
   tipo_movimiento: Joi.string().valid('ajuste_inicial').optional(),
-  // 👇 Atributos opcionales
+
   atributo: Joi.object({
     nombre: Joi.string().max(100).required().messages({
       'string.base': 'El nombre del atributo debe ser un texto',
@@ -70,15 +58,86 @@ export const detalleProductoSchema = Joi.object({
       })
     )
     .optional(),
-  })
-  .custom((value, helpers) => {
-    // Validar si es ajuste inicial
-    if (value.tipo_movimiento === 'ajuste_inicial') {
-      if (!value.cantidad) return helpers.message('"cantidad" es obligatoria para ajuste_inicial');
-      if (!value.ubicacion_id) return helpers.message('"ubicacion_id" es obligatoria para ajuste_inicial');
-      if (typeof value.precio_costo !== 'number') return helpers.message('"precio_costo" es obligatoria para ajuste_inicial');
+
+  ubicaciones: Joi.array().items(
+    Joi.object({
+      ubicacion_fisica_id: Joi.number().integer().required().messages({
+        'number.base': 'La ubicación física debe ser un número',
+        'any.required': 'La ubicación física es obligatoria',
+      }),
+      negocio_id: Joi.number().integer().required().messages({
+        'number.base': 'El ID del negocio debe ser un número',
+        'any.required': 'El ID del negocio es obligatorio',
+      }),
+      cantidad: Joi.number().positive().required().messages({
+        'number.base': 'La cantidad debe ser un número',
+        'number.positive': 'La cantidad debe ser mayor a 0',
+        'any.required': 'La cantidad es obligatoria',
+      }),
+      precio_costo: Joi.number().precision(2).required().messages({
+        'number.base': 'El precio de costo debe ser un número',
+        'any.required': 'El precio de costo es obligatorio',
+      }),
+      compartir: Joi.boolean().optional().default(false).messages({
+        'boolean.base': 'El campo compartir debe ser booleano',
+      }),
+      precios: Joi.array().items(
+        Joi.object({
+          precio_venta: Joi.number().precision(2).required().messages({
+            'number.base': 'El precio de venta debe ser un número',
+            'any.required': 'El precio de venta es obligatorio',
+          }),
+          vigente: Joi.boolean().optional().messages({
+            'boolean.base': 'Debe ser un valor booleano',
+          }),
+          fecha_inicio: Joi.date().optional().messages({
+            'date.base': 'La fecha de inicio debe ser válida',
+          }),
+          fecha_fin: Joi.date().optional().allow(null).messages({
+            'date.base': 'La fecha fin debe ser válida',
+          }),
+          cliente_id: Joi.number().integer().optional().allow(null),
+          tipo_cliente_id: Joi.number().integer().optional().allow(null),
+          cantidad_minima: Joi.number().integer().optional().allow(null),
+          precio_base: Joi.number().precision(2).optional().allow(null),
+          prioridad: Joi.number().integer().optional().allow(null),
+          descripcion: Joi.string().max(150).optional().allow(null, '')
+        })
+      ).optional()
+    })
+  ).required().min(1).messages({
+    'array.base': 'Debe ser un arreglo de ubicaciones',
+    'array.min': 'Debe haber al menos una ubicación definida',
+  }),
+
+  etiquetas: Joi.array()
+    .items(etiquetaProductoSchema)
+    .optional()
+    .custom((etqs, helpers) => {
+      for (const e of etqs || []) {
+        if (!e.tipo || !e.alias) {
+          return helpers.message('Cada etiqueta debe tener tipo y alias definidos');
+        }
+      }
+      return etqs;
+    }),
+
+  fotos: Joi.array().items(Joi.string().uri().messages({
+    'string.uri': 'Cada foto debe ser una URL válida',
+  })).optional(),
+
+}).custom((value, helpers) => {
+  if (value.tipo_movimiento === 'ajuste_inicial') {
+    if (!Array.isArray(value.ubicaciones) || value.ubicaciones.length === 0) {
+      return helpers.message('Debe incluir al menos una ubicación para ajuste_inicial');
     }
-    return value;
-  }, 'Condición para ajuste_inicial');
-  
-  export default detalleProductoSchema;
+    for (const u of value.ubicaciones) {
+      if (!u.cantidad) return helpers.message('La cantidad es obligatoria en cada ubicación');
+      if (!u.ubicacion_fisica_id) return helpers.message('ubicacion_fisica_id es obligatoria en cada ubicación');
+      if (typeof u.precio_costo !== 'number') return helpers.message('precio_costo es obligatorio en cada ubicación');
+    }
+  }
+  return value;
+}, 'Condición para ajuste_inicial');
+
+export default detalleProductoSchema;

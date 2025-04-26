@@ -4,7 +4,7 @@ import {
   editarDetalleProductoController,
   eliminarDetalleProductoController,
   mostrarDetalleProductosController,
-  buscarDetalleProductoIdController,
+  buscarDetalleProductoIdController,buscarDetalleProductoCompletoController,
 } from "../controllers/detalle_ProductoController.js";
 import validateRequest from "../middlewares/validateRequest.js";
 import { detalleProductoSchema } from "../middlewares/validarDetalleProducto.js";
@@ -24,7 +24,7 @@ router.post(
 router.get("/", mostrarDetalleProductosController);
 
 // Leer uno
-router.get("/:id", buscarDetalleProductoIdController);
+router.get("/:id", buscarDetalleProductoCompletoController);
 
 // Actualizar
 router.put(

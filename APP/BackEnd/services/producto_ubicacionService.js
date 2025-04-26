@@ -26,3 +26,10 @@ export const insertarProductoUbicacionDesdeMovimientoTx = async (tx, data) => {
   const [insertado] = await tx.insert(ProductoUbicacion).values(data).returning();
   return insertado;
 };
+ 
+export const buscarUbicacionesPorDetalleProductoService = async (detalle_producto_id) => {
+  return await db
+    .select()
+    .from(ProductoUbicacion)
+    .where(eq(ProductoUbicacion.detalle_producto_id, detalle_producto_id));
+};

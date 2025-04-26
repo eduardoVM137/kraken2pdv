@@ -25,3 +25,11 @@ export const insertarPrecioDesdeMovimientoTx = async (tx, data) => {
   const [insertado] = await tx.insert(Precio).values(data).returning();
   return insertado;
 };
+
+
+export const buscarPreciosPorDetalleProductoService = async (detalle_producto_id) => {
+  return await db
+    .select()
+    .from(Precio)
+    .where(eq(Precio.detalle_producto_id, detalle_producto_id));
+};
