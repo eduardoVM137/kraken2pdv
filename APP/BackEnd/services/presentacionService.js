@@ -20,3 +20,16 @@ export const eliminarPresentacionService = async (id) => {
   const eliminado = await db.delete(Presentacion).where(eq(Presentacion.id, id)).returning();
   return eliminado.length > 0;
 };
+
+// Insertar una presentación usando una transacción
+export const insertarPresentacionServiceTx = async (tx, presentacionData) => {
+  if (!presentacionData || typeof presentacionData !== 'object') {
+    throw new Error('Los datos de la presentación no son válidos');
+  }
+
+  const inserted = await tx.insert(Presentacion)
+    .values(presentacionData)
+    .returning(); // Devuelve el registro creado
+
+  return inserted[0] || null;
+};

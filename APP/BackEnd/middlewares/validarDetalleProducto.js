@@ -1,5 +1,6 @@
 import Joi from 'joi';
 import { etiquetaProductoSchema } from './validarEtiquetaProducto.js';
+import { presentacionSchemaOpcional } from './validarPresentacion.js';
 
 export const detalleProductoSchema = Joi.object({
   producto_id: Joi.number().integer().required().messages({
@@ -109,13 +110,14 @@ export const detalleProductoSchema = Joi.object({
     'array.base': 'Debe ser un arreglo de ubicaciones',
     'array.min': 'Debe haber al menos una ubicación definida',
   }),
+  presentaciones: Joi.array().items(presentacionSchemaOpcional).optional(),
 
   etiquetas: Joi.array()
     .items(etiquetaProductoSchema)
     .optional()
     .custom((etqs, helpers) => {
       for (const e of etqs || []) {
-        if (!e.tipo || !e.alias) {
+        if (!e.alias) {//!e.tipo || 
           return helpers.message('Cada etiqueta debe tener tipo y alias definidos');
         }
       }

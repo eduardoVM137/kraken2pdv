@@ -1,7 +1,7 @@
 import Joi from 'joi';
 
 const etiquetaProductoSchema = Joi.object({
-  tipo: Joi.string().max(50).required().messages({
+  tipo: Joi.string().max(50).allow(null).messages({
     'string.base': 'El tipo debe ser un texto',
     'string.max': 'El tipo no debe exceder 50 caracteres',
     'any.required': 'El tipo es obligatorio',
@@ -21,6 +21,7 @@ const etiquetaProductoSchema = Joi.object({
     'number.base': 'El ID de la presentación debe ser un número',
     'number.integer': 'El ID de la presentación debe ser un número entero',
   }),
+  idVirtualPresentacion: Joi.string().optional(), // <<<<< Campo para fines de acomodación
 });
 
 export { etiquetaProductoSchema };
