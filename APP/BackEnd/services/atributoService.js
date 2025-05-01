@@ -1,6 +1,7 @@
 import { db } from "../config/database.js";
 import { Atributo } from "../models/atributo.js";
 import { eq } from "drizzle-orm";
+import * as schema from "../models/schema.js"; // ✅ NECESARIO para schema.DetalleProducto
 
 import { DetalleAtributo } from "../models/detalle_atributo.js";
 export const mostrarAtributosService = async () => {
@@ -38,4 +39,9 @@ export const buscarAtributoPorIdService = async (id) => {
     .from(Atributo)
     .where(eq(Atributo.id, id))
     .then(res => res[0]);
+};
+export const editarAtributoServiceTx = async (tx, id, data) => {
+  await tx.update(schema.Atributo)
+    .set(data)
+    .where(eq(schema.Atributo.id, id));
 };

@@ -1,6 +1,7 @@
 import { db } from "../config/database.js";
 import { DetalleProducto } from "../models/detalle_producto.js";
 import { eq } from "drizzle-orm";
+import * as schema from "../models/schema.js"; // ✅ NECESARIO para schema.DetalleProducto
 
 // 🔹 Insertar
 export const insertarDetalleProductoService = async (data) => {
@@ -14,6 +15,7 @@ export const insertarDetalleProductoService = async (data) => {
 };
 
 // 🔹 Editar
+
 export const editarDetalleProductoService = async (id, data) => {
   try {
     const [actualizado] = await db
@@ -21,11 +23,21 @@ export const editarDetalleProductoService = async (id, data) => {
       .set(data)
       .where(eq(DetalleProducto.id, id))
       .returning();
+
     return actualizado ?? null;
   } catch (error) {
     console.error("Error al editar detalle_producto:", error);
-    throw new Error("No se pudo editar el detalle del producto");
+    throw new Error("No se pudo editar el detalle del producto especificado");
   }
+};
+
+export const editarDetalleProductoServiceTx = async (tx, id, data) => {
+  const [actualizado] = await tx
+    .update(schema.DetalleProducto)
+    .set(data)
+    .where(eq(schema.DetalleProducto.id, id))
+    .returning();
+  return actualizado ?? null;
 };
 
 // 🔹 Eliminar

@@ -7,6 +7,7 @@ import {
   eliminarDetalleProductoService,
   mostrarDetalleProductosService,
   buscarDetalleProductoIdService,
+  editarDetalleProductoServiceTx,
 } from "../services/detalle_ProductoService.js";
 import { insertarMovimientoStockServiceTx } from "../services/movimientoStockService.js";
 import { insertarStateServiceTx } from "../services/stateService.js";
@@ -25,8 +26,45 @@ import { buscarAtributoPorIdService } from '../services/atributoService.js';
 import { buscarDetallesAtributoService } from '../services/detalleAtributoService.js';
 import { buscarAliasPorDetalleProductoService } from '../services/etiquetaProductoService.js';
 import { buscarPreciosPorDetalleProductoService } from '../services/precioService.js';
+ 
+import { buscarComponentesPorDetalleProductoService } from '../services/componenteService.js';
+import { buscarDetalleProductoCeldaPorDetalleProductoService } from '../services/detalle_producto_celdaService.js';
 
 import { insertarPresentacionServiceTx } from '../services/presentacionService.js'; // <<-- Asegúrate de tener este service creado.
+
+import { insertarComponenteProductoTx } from '../services/componenteService.js'; // <<-- Asegúrate de tener este service creado.
+ 
+import { insertarDetalleProductoCeldaTx } from '../services/detalle_producto_celdaService.js'; // <<-- Asegúrate de tener este service creado.
+ 
+import * as schema from '../models/schema.js';
+
+
+ 
+
+import {
+  editarAtributoServiceTx,
+  
+} from '../services/atributoService.js';
+
+import {
+  
+  eliminarDetallesAtributoServiceTx
+} from '../services/detalleAtributoService.js';
+
+import {
+  eliminarAliasProductoTx,
+} from '../services/etiquetaProductoService.js';
+
+import {
+  eliminarMultimediaProductoTx,
+} from '../services/productoMultimediaService.js';
+
+import {
+  eliminarPresentacionesServiceTx,
+} from '../services/presentacionService.js';
+
+
+
 
 export const insertarDetalleProductoController = async (req, res, next) => {
   try {
@@ -37,6 +75,8 @@ export const insertarDetalleProductoController = async (req, res, next) => {
       etiquetas = [],
       fotos = [], 
       presentaciones = [], 
+      componentes = [], 
+      celdas = [], 
       compartir = false,
       ...resto
     } = req.body;
@@ -72,6 +112,19 @@ export const insertarDetalleProductoController = async (req, res, next) => {
       });
       if (!detalleInsertado?.id) throw new Error("No se pudo insertar el detalle del producto");
 
+      // 4. Insertar componentes si se proporcionan
+      if (Array.isArray(componentes) && componentes.length > 0) {
+        const lista = componentes.map(comp => ({
+          detalle_producto_hijo_id: detalleInsertado.id,
+          detalle_producto_padre_id: comp.detalle_producto_padre_id,
+          cantidad: comp.cantidad,
+        }));
+        await insertarComponenteProductoTx(tx, lista);
+      }
+      
+      
+      
+
       // 4. Insertar ubicaciones, inventario y precios
       for (const u of ubicaciones) {
         const movimiento = await insertarMovimientoStockServiceTx(tx, {
@@ -79,7 +132,7 @@ export const insertarDetalleProductoController = async (req, res, next) => {
           producto_id: resto.producto_id,
           detalle_producto_id: detalleInsertado.id,
           ubicacion_id: u.ubicacion_fisica_id,
-          cantidad: u.cantidad,
+          cantidad: u.stock_actual,
           precio_costo: u.precio_costo,
           tipo_movimiento: 'ajuste_inicial',
           motivo: 'Alta inicial del detalle producto',
@@ -89,12 +142,31 @@ export const insertarDetalleProductoController = async (req, res, next) => {
 
         const inventarioInsertado = await insertarInventarioDesdeMovimientoTx(tx, {
           detalle_producto_id: detalleInsertado.id,
-          cantidad: u.cantidad,
+          stock_actual: u.stock_actual,
+          stock_minimo: u.stock_minimo,
           precio_costo: u.precio_costo,
           ubicacion_fisica_id: u.ubicacion_fisica_id,
           proveedor_id: null,
           state_id: state.id,
         });
+        // 5.1 Insertar detalle_producto_celda si hay celdas definidas
+    
+        
+        if (Array.isArray(u.celdas) && u.celdas.length > 0) {
+          const lista = u.celdas.map(celda => ({
+            detalle_producto_id: detalleInsertado.id,
+            inventario_id: inventarioInsertado.id,
+            celda_id: celda.celda_id,
+            contenedor_fisico_id: celda.contenedor_fisico_id,
+            cantidad: celda.cantidad,
+          }));
+          await insertarDetalleProductoCeldaTx(tx, lista);
+        }
+
+      
+      
+
+
 
         const preciosInsertados = [];
         if (u.precios?.length > 0) {
@@ -163,6 +235,10 @@ export const insertarDetalleProductoController = async (req, res, next) => {
           url_archivo: f
         })));
       }
+      
+ 
+
+      
 
       return detalleInsertado;
     });
@@ -175,6 +251,111 @@ export const insertarDetalleProductoController = async (req, res, next) => {
 };
 
 
+export const editarDetalleProductoController = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+
+    const existente = await buscarDetalleProductoIdService(id);
+    if (!existente) return res.status(404).json({ message: "Detalle producto no encontrado" });
+
+    const {
+      nombre_calculado,
+      descripcion,
+      medida,
+      unidad_medida,
+      marca_id,
+      activo,
+
+      atributo,
+      detalles_atributo = [],
+      etiquetas = [],
+      fotos = [],
+      presentaciones = []
+    } = req.body;
+
+    const resultado = await db.transaction(async (tx) => {
+      // 1. Actualizar campos del detalle_producto
+      const actualizado = await editarDetalleProductoServiceTx(tx, id, {
+        nombre_calculado,
+        descripcion,
+        medida,
+        unidad_medida,
+        marca_id,
+        activo
+      });
+      if (!actualizado) throw new Error("No se pudo actualizar el detalle del producto");
+
+      // 2. Editar atributo si viene
+      if (atributo?.nombre) {
+        if (existente.atributo_id) {
+          await editarAtributoServiceTx(tx, existente.atributo_id, { nombre: atributo.nombre });
+        } else {
+          const nuevoAtributo = await insertarAtributoServiceTx(tx, atributo);
+          await editarDetalleProductoServiceTx(tx, id, { atributo_id: nuevoAtributo.id });
+        }
+
+        const atributo_id = existente.atributo_id ?? actualizado.atributo_id;
+
+        // Reemplazar detalles del atributo
+        await eliminarDetallesAtributoServiceTx(tx, atributo_id);
+        if (detalles_atributo.length > 0) {
+          const nuevosDetalles = detalles_atributo.map(d => ({
+            id_atributo: atributo_id,
+            valor: d.valor
+          }));
+          await insertarDetalleAtributosServiceTx(tx, nuevosDetalles);
+        }
+      }
+
+      // 3. Reemplazar etiquetas (alias, códigos, etc.)
+      await eliminarAliasProductoTx(tx, id);
+      if (etiquetas.length > 0) {
+        const nuevas = etiquetas.map(e => ({
+          detalle_producto_id: id,
+          tipo: e.tipo,
+          alias: e.alias,
+          presentacion_id: e.presentacion_id ?? null,
+          visible: e.visible ?? true
+        }));
+        await insertarAliasProductoTx(tx, nuevas);
+      }
+
+      // 4. Reemplazar fotos (multimedia)
+      await eliminarMultimediaProductoTx(tx, id);
+      if (fotos.length > 0) {
+        const nuevas = fotos.map(url => ({
+          detalle_producto_id: id,
+          url_archivo: url
+        }));
+        await insertarMultimediaProductoTx(tx, nuevas);
+      }
+
+      // 5. Reemplazar presentaciones
+      await eliminarPresentacionesServiceTx(tx, id);
+      if (presentaciones.length > 0) {
+        for (const p of presentaciones) {
+          await insertarPresentacionServiceTx(tx, {
+            detalle_producto_id: id,
+            nombre: p.nombre,
+            cantidad: p.cantidad,
+            descripcion: p.descripcion
+          });
+        }
+      }
+
+      return actualizado;
+    });
+
+    return res.status(200).json({
+      message: "Detalle producto actualizado correctamente",
+      data: resultado
+    });
+  } catch (error) {
+    console.error("Error al editar detalle_producto:", error);
+    return res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
 
 
 // export const insertarDetalleProductoController = async (req, res, next) => {
@@ -557,19 +738,9 @@ export const insertarDetalleProductoController = async (req, res, next) => {
 // };
 
 // Editar
-export const editarDetalleProductoController = async (req, res, next) => {
-  try {
-    const id = Number(req.params.id);
-    if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
 
-    const data = await editarDetalleProductoService(id, req.body);
-    if (!data) return res.status(404).json({ message: "Detalle producto no encontrado" });
 
-    res.status(200).json({ message: "Detalle producto actualizado", data });
-  } catch (error) {
-    next(error);
-  }
-};
+
 
 // Eliminar
 export const eliminarDetalleProductoController = async (req, res, next) => {
@@ -627,6 +798,17 @@ export const buscarDetalleProductoCompletoController = async (req, res, next) =>
     const fotos = await buscarFotosPorDetalleProductoService(id);
     const ubicaciones = await buscarUbicacionesPorDetalleProductoService(id);
     const precios = await buscarPreciosPorDetalleProductoService(id);
+    const celdas = await buscarDetalleProductoCeldaPorDetalleProductoService(id);
+    // 🚧 Aún no tienes este service, pero ya está preparado para usar:
+    const componentes = await buscarComponentesPorDetalleProductoService(id);
+
+    const celdasPorInventario = {};
+    for (const c of celdas) {
+      if (!celdasPorInventario[c.inventario_id]) {
+        celdasPorInventario[c.inventario_id] = [];
+      }
+      celdasPorInventario[c.inventario_id].push(c);
+    }
 
     // Construcción final
     const resultado = {
@@ -650,8 +832,10 @@ export const buscarDetalleProductoCompletoController = async (req, res, next) =>
       fotos,
       ubicaciones: ubicaciones.map(u => ({
         ...u,
-        precios: precios.filter(p => p.ubicacion_fisica_id === u.ubicacion_fisica_id)
-      }))
+        precios: precios.filter(p => p.ubicacion_fisica_id === u.ubicacion_fisica_id),
+        celdas: celdas
+      })),
+       componentes // <- descomenta cuando tengas el service
     };
 
     return res.status(200).json({ data: resultado });

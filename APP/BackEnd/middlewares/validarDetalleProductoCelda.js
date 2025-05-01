@@ -1,17 +1,17 @@
 import Joi from 'joi';
 
-const detalleproductoceldaSchema = Joi.object({
-  // TODO: define aquí los campos según el modelo
+export const celdaSchema = Joi.object({
+  celda_id: Joi.number().integer().required().messages({
+    'number.base': 'El ID de la celda debe ser un número',
+    'any.required': 'El ID de la celda es obligatorio',
+  }),
+  contenedor_fisico_id: Joi.number().integer().required().messages({
+    'number.base': 'El contenedor físico debe ser un número',
+    'any.required': 'El contenedor físico es obligatorio',
+  }),
+  cantidad: Joi.number().positive().required().messages({
+    'number.base': 'La cantidad debe ser un número',
+    'number.positive': 'La cantidad debe ser mayor a 0',
+    'any.required': 'La cantidad es obligatoria',
+  }),
 });
-
-const validarDetalleProductoCelda = (req, res, next) => {
-  const { error } = detalleproductoceldaSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    const errores = error.details.map(e => e.message);
-    return res.status(400).json({ errores });
-  }
-  next();
-};
-
-export default validarDetalleProductoCelda;
-export { detalleproductoceldaSchema };

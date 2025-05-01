@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Formulario Detalle Producto</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+    h2 { margin-top: 40px; }
+    fieldset { margin-bottom: 30px; padding: 20px; background: #fff; border-radius: 8px; border: 1px solid #ccc; }
+    label { display: block; margin-top: 10px; font-weight: bold; }
+    input, textarea, select { width: 100%; padding: 8px; margin-top: 5px; }
+    button { margin-top: 15px; padding: 10px 20px; cursor: pointer; background: #007BFF; color: #fff; border: none; border-radius: 4px; }
+    button:hover { background: #0056b3; }
+    .section { margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+
+<h1>Crear/Editar Detalle Producto</h1>
+
+<form id="formDetalleProducto">
+
+  <fieldset>
+    <legend>Datos Principales</legend>
+    <label>Producto ID</label>
+    <input type="number" id="producto_id">
+
+    <label>Medida</label>
+    <input type="number" id="medida" step="0.01">
+
+    <label>Unidad de Medida</label>
+    <input type="text" id="unidad_medida">
+
+    <label>Marca ID</label>
+    <input type="text" id="marca_id">
+
+    <label>Descripción</label>
+    <textarea id="descripcion"></textarea>
+
+    <label>Nombre Calculado</label>
+    <input type="text" id="nombre_calculado">
+
+    <label>Activo</label>
+    <select id="activo">
+      <option value="true">Activo</option>
+      <option value="false">Inactivo</option>
+    </select>
+  </fieldset>
+
+  <fieldset>
+    <legend>Atributo y Detalles Atributo</legend>
+    <label>Nombre Atributo</label>
+    <input type="text" id="atributo_nombre"> 
+
+    <div id="detallesAtributo"></div>
+    <button type="button" onclick="agregarDetalleAtributo()">Agregar Detalle Atributo</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Ubicaciones</legend>
+    <div id="ubicaciones"></div>
+    <button type="button" onclick="agregarUbicacion()">Agregar Ubicación</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Presentaciones</legend>
+    <div id="presentaciones"></div>
+    <button type="button" onclick="agregarPresentacion()">Agregar Presentación</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Alias / Códigos de Búsqueda</legend>
+    <div id="alias"></div>
+    <button type="button" onclick="agregarAlias()">Agregar Alias</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>Fotos</legend>
+    <div id="fotos"></div>
+    <button type="button" onclick="agregarFoto()">Agregar Foto</button>
+  </fieldset>
+
+  <button type="button" onclick="generarJSON()">Generar JSON Final</button>
+
+</form>
+
+<pre id="output"></pre>
+
+<script>
+const presentaciones = [];
+const alias = [];
+const ubicaciones = [];
+const detalles_atributo = [];
+const fotos = [];
+
+function agregarPresentacion() {
+  const nombre = prompt('Nombre de la Presentación:');
+  const cantidad = parseFloat(prompt('Cantidad:'));
+  const descripcion = prompt('Descripción:');
+  const idVirtual = `presen-${presentaciones.length + 1}`;
+
+  presentaciones.push({ nombre, cantidad, descripcion, idVirtualPresentacion: idVirtual });
+  renderizarLista('presentaciones', presentaciones);
+}
+
+function agregarAlias() {
+  const tipo = prompt('Tipo (codigo/presentacion):');
+  const aliasValor = prompt('Alias o Código:');
+  const visible = confirm('Visible?');
+  const idVirtualPresentacion = tipo.toLowerCase() === 'presentacion' ? prompt('ID Virtual Presentación (opcional):') : null;
+
+  alias.push({ tipo, alias: aliasValor, visible, idVirtualPresentacion: idVirtualPresentacion || undefined });
+  renderizarLista('alias', alias);
+}
+
+function agregarUbicacion() {
+  const ubicacion_fisica_id = parseInt(prompt('ID Ubicación Física:'));
+  const negocio_id = parseInt(prompt('ID Negocio:'));
+  const cantidad = parseInt(prompt('Cantidad:'));
+  const precio_costo = parseFloat(prompt('Precio Costo:'));
+
+  ubicaciones.push({ ubicacion_fisica_id, negocio_id, cantidad, precio_costo });
+  renderizarLista('ubicaciones', ubicaciones);
+}
+
+function agregarDetalleAtributo() {
+  const valor = prompt('Valor del detalle atributo:');
+  detalles_atributo.push({ valor });
+  renderizarLista('detallesAtributo', detalles_atributo);
+}
+
+function agregarFoto() {
+  const url = prompt('URL de la foto:');
+  fotos.push(url);
+  renderizarLista('fotos', fotos);
+}
+
+function renderizarLista(id, array) {
+  document.getElementById(id).innerText = JSON.stringify(array, null, 2);
+}
+
+function generarJSON() {
+  const data = {
+    producto_id: parseInt(document.getElementById('producto_id').value),
+    medida: parseFloat(document.getElementById('medida').value),
+    unidad_medida: document.getElementById('unidad_medida').value,
+    marca_id: document.getElementById('marca_id').value,
+    descripcion: document.getElementById('descripcion').value,
+    nombre_calculado: document.getElementById('nombre_calculado').value,
+    activo: document.getElementById('activo').value === 'true',
+    atributo: { nombre: document.getElementById('atributo_nombre').value },
+    detalles_atributo,
+    ubicaciones,
+    presentaciones,
+    etiquetas: alias,
+    fotos
+  };
+
+  document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+}
+</script>
+
+</body>
+</html>
