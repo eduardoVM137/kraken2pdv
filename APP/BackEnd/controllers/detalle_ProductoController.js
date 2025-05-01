@@ -7,7 +7,6 @@ import {
   eliminarDetalleProductoService,
   mostrarDetalleProductosService,
   buscarDetalleProductoIdService,
-  editarDetalleProductoServiceTx,
 } from "../services/detalle_ProductoService.js";
 import { insertarMovimientoStockServiceTx } from "../services/movimientoStockService.js";
 import { insertarStateServiceTx } from "../services/stateService.js";
@@ -35,36 +34,6 @@ import { insertarPresentacionServiceTx } from '../services/presentacionService.j
 import { insertarComponenteProductoTx } from '../services/componenteService.js'; // <<-- Asegúrate de tener este service creado.
  
 import { insertarDetalleProductoCeldaTx } from '../services/detalle_producto_celdaService.js'; // <<-- Asegúrate de tener este service creado.
- 
-import * as schema from '../models/schema.js';
-
-
- 
-
-import {
-  editarAtributoServiceTx,
-  
-} from '../services/atributoService.js';
-
-import {
-  
-  eliminarDetallesAtributoServiceTx
-} from '../services/detalleAtributoService.js';
-
-import {
-  eliminarAliasProductoTx,
-} from '../services/etiquetaProductoService.js';
-
-import {
-  eliminarMultimediaProductoTx,
-} from '../services/productoMultimediaService.js';
-
-import {
-  eliminarPresentacionesServiceTx,
-} from '../services/presentacionService.js';
-
-
-
 
 export const insertarDetalleProductoController = async (req, res, next) => {
   try {
@@ -251,111 +220,6 @@ export const insertarDetalleProductoController = async (req, res, next) => {
 };
 
 
-export const editarDetalleProductoController = async (req, res, next) => {
-  try {
-    const id = Number(req.params.id);
-    if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
-
-    const existente = await buscarDetalleProductoIdService(id);
-    if (!existente) return res.status(404).json({ message: "Detalle producto no encontrado" });
-
-    const {
-      nombre_calculado,
-      descripcion,
-      medida,
-      unidad_medida,
-      marca_id,
-      activo,
-
-      atributo,
-      detalles_atributo = [],
-      etiquetas = [],
-      fotos = [],
-      presentaciones = []
-    } = req.body;
-
-    const resultado = await db.transaction(async (tx) => {
-      // 1. Actualizar campos del detalle_producto
-      const actualizado = await editarDetalleProductoServiceTx(tx, id, {
-        nombre_calculado,
-        descripcion,
-        medida,
-        unidad_medida,
-        marca_id,
-        activo
-      });
-      if (!actualizado) throw new Error("No se pudo actualizar el detalle del producto");
-
-      // 2. Editar atributo si viene
-      if (atributo?.nombre) {
-        if (existente.atributo_id) {
-          await editarAtributoServiceTx(tx, existente.atributo_id, { nombre: atributo.nombre });
-        } else {
-          const nuevoAtributo = await insertarAtributoServiceTx(tx, atributo);
-          await editarDetalleProductoServiceTx(tx, id, { atributo_id: nuevoAtributo.id });
-        }
-
-        const atributo_id = existente.atributo_id ?? actualizado.atributo_id;
-
-        // Reemplazar detalles del atributo
-        await eliminarDetallesAtributoServiceTx(tx, atributo_id);
-        if (detalles_atributo.length > 0) {
-          const nuevosDetalles = detalles_atributo.map(d => ({
-            id_atributo: atributo_id,
-            valor: d.valor
-          }));
-          await insertarDetalleAtributosServiceTx(tx, nuevosDetalles);
-        }
-      }
-
-      // 3. Reemplazar etiquetas (alias, códigos, etc.)
-      await eliminarAliasProductoTx(tx, id);
-      if (etiquetas.length > 0) {
-        const nuevas = etiquetas.map(e => ({
-          detalle_producto_id: id,
-          tipo: e.tipo,
-          alias: e.alias,
-          presentacion_id: e.presentacion_id ?? null,
-          visible: e.visible ?? true
-        }));
-        await insertarAliasProductoTx(tx, nuevas);
-      }
-
-      // 4. Reemplazar fotos (multimedia)
-      await eliminarMultimediaProductoTx(tx, id);
-      if (fotos.length > 0) {
-        const nuevas = fotos.map(url => ({
-          detalle_producto_id: id,
-          url_archivo: url
-        }));
-        await insertarMultimediaProductoTx(tx, nuevas);
-      }
-
-      // 5. Reemplazar presentaciones
-      await eliminarPresentacionesServiceTx(tx, id);
-      if (presentaciones.length > 0) {
-        for (const p of presentaciones) {
-          await insertarPresentacionServiceTx(tx, {
-            detalle_producto_id: id,
-            nombre: p.nombre,
-            cantidad: p.cantidad,
-            descripcion: p.descripcion
-          });
-        }
-      }
-
-      return actualizado;
-    });
-
-    return res.status(200).json({
-      message: "Detalle producto actualizado correctamente",
-      data: resultado
-    });
-  } catch (error) {
-    console.error("Error al editar detalle_producto:", error);
-    return res.status(500).json({ error: "Error interno del servidor" });
-  }
-};
 
 
 // export const insertarDetalleProductoController = async (req, res, next) => {
@@ -738,6 +602,127 @@ export const editarDetalleProductoController = async (req, res, next) => {
 // };
 
 // Editar
+
+export const editarDetalleProductoController = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+
+    const existente = await buscarDetalleProductoIdService(id);
+    if (!existente) return res.status(404).json({ message: "Detalle producto no encontrado" });
+
+    const {
+      atributo,
+      detalles_atributo = [],
+      fotos = [],
+      etiquetas = [],
+      presentaciones = [],
+      nombre_calculado,
+      descripcion,
+      medida,
+      unidad_medida,
+      marca_id,
+      activo
+    } = req.body;
+
+    const resultado = await db.transaction(async (tx) => {
+      // 1. Actualizar detalle_producto
+      const actualizado = await editarDetalleProductoService(id, {
+        nombre_calculado,
+        descripcion,
+        medida,
+        unidad_medida,
+        marca_id,
+        activo
+      });
+
+      if (!actualizado) throw new Error("No se pudo actualizar el detalle_producto");
+
+      // 2. Actualizar atributo y detalles si vienen
+      if (atributo?.nombre) {
+        const atributoExistente = existente.atributo_id
+          ? await buscarAtributoPorIdService(existente.atributo_id)
+          : null;
+
+        let atributo_id = existente.atributo_id;
+
+        if (atributoExistente) {
+          await tx.update(schema.Atributo)
+            .set({ nombre: atributo.nombre })
+            .where(eq(schema.Atributo.id, existente.atributo_id));
+        } else {
+          const nuevo = await insertarAtributoServiceTx(tx, atributo);
+          atributo_id = nuevo.id;
+          await tx.update(schema.DetalleProducto)
+            .set({ atributo_id: atributo_id })
+            .where(eq(schema.DetalleProducto.id, id));
+        }
+
+        // Reemplazar detalles_atributo
+        await tx.delete(schema.DetalleAtributo)
+          .where(eq(schema.DetalleAtributo.id_atributo, atributo_id));
+
+        if (detalles_atributo.length > 0) {
+          const nuevos = detalles_atributo.map(d => ({
+            id_atributo: atributo_id,
+            valor: d.valor
+          }));
+          await insertarDetalleAtributosServiceTx(tx, nuevos);
+        }
+      }
+
+      // 3. Reemplazar etiquetas (alias)
+      if (Array.isArray(etiquetas)) {
+        await tx.delete(schema.EtiquetaProducto).where(eq(schema.EtiquetaProducto.detalle_producto_id, id));
+        if (etiquetas.length > 0) {
+          const etiquetasFormateadas = etiquetas.map(e => ({
+            detalle_producto_id: id,
+            tipo: e.tipo,
+            alias: e.alias,
+            presentacion_id: e.presentacion_id ?? null,
+            visible: e.visible ?? true
+          }));
+          await insertarAliasProductoTx(tx, etiquetasFormateadas);
+        }
+      }
+
+      // 4. Reemplazar fotos
+      if (Array.isArray(fotos)) {
+        await tx.delete(schema.ProductoMultimedia).where(eq(schema.ProductoMultimedia.detalle_producto_id, id));
+        if (fotos.length > 0) {
+          const nuevas = fotos.map(url => ({
+            detalle_producto_id: id,
+            url_archivo: url
+          }));
+          await insertarMultimediaProductoTx(tx, nuevas);
+        }
+      }
+
+      // 5. Reemplazar presentaciones
+      if (Array.isArray(presentaciones)) {
+        await tx.delete(schema.Presentacion).where(eq(schema.Presentacion.detalle_producto_id, id));
+        if (presentaciones.length > 0) {
+          for (const p of presentaciones) {
+            await insertarPresentacionServiceTx(tx, {
+              detalle_producto_id: id,
+              nombre: p.nombre,
+              cantidad: p.cantidad,
+              descripcion: p.descripcion
+            });
+          }
+        }
+      }
+
+      return actualizado;
+    });
+
+    return res.status(200).json({ message: "Detalle producto actualizado", data: resultado });
+  } catch (error) {
+    console.error("Error al editar detalle_producto:", error);
+    return res.status(500).json({ error: "Error interno del servidor" });
+  }
+};
+
 
 
 
