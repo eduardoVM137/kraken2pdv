@@ -4,43 +4,37 @@ import {
   editarDetalleProductoController,
   eliminarDetalleProductoController,
   mostrarDetalleProductosController,
-  buscarDetalleProductoIdController,
-  buscarDetalleProductoCompletoController,
+  buscarDetalleProductoIdController,buscarDetalleProductoCompletoController,
 } from "../controllers/detalle_ProductoController.js";
-
 import validateRequest from "../middlewares/validateRequest.js";
+import { detalleProductoSchema } from "../middlewares/validarDetalleProducto.js";
 import authMiddleware from "../middlewares/authMiddleware.js";
-
-// Importar los esquemas separados
-import {
-  detalleProductoCrearSchema,
-  detalleProductoEditarSchema,
-} from "../middlewares/validarDetalleProducto.js"; 
 
 const router = express.Router();
 
 // Crear
 router.post(
   "/",
-  validateRequest(detalleProductoCrearSchema),
+  
+  validateRequest(detalleProductoSchema),
   insertarDetalleProductoController
 );
 
-// Leer todos
+// Leer todo
 router.get("/", mostrarDetalleProductosController);
 
-// Leer uno (detalle completo)
+// Leer uno
 router.get("/:id", buscarDetalleProductoCompletoController);
 
 // Actualizar
 router.put(
   "/:id",
-  
-  validateRequest(detalleProductoEditarSchema),
+  authMiddleware,
+  validateRequest(detalleProductoSchema),
   editarDetalleProductoController
 );
 
 // Eliminar
-router.delete("/:id", eliminarDetalleProductoController);
+router.delete("/:id", authMiddleware, eliminarDetalleProductoController);
 
 export default router;
