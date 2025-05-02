@@ -1,157 +1,139 @@
-<!-- Modal para crear producto completo -->
-<div id="modalCrearProducto" class="modal">
-    <div class="modal-content">
-      <h2>Crear Nuevo Producto</h2>
-  
-      <!-- Producto y detalle básico -->
-      <fieldset>
-        <legend>Producto</legend>
-        
-        <label>Producto ID:</label>
-        <input type="number" name="producto_id" required>
-  
-        <label>Marca:</label>
-        <input type="text" name="marca_id">
-  
-        <label>Descripción:</label>
-        <textarea name="descripcion"></textarea>
-  
-        <label>Nombre calculado:</label>
-        <input type="text" name="nombre_calculado">
-  
-        <label>Medida:</label>
-        <input type="number" step="0.01" name="medida" required>
-  
-        <label>Unidad de medida:</label>
-        <input type="text" name="unidad_medida" required>
-  
-        <label>Activo:</label>
-        <select name="activo">
-          <option value="true">Sí</option>
-          <option value="false">No</option>
-        </select>
-      </fieldset>
-  
-      <!-- Atributo principal -->
-      <fieldset>
-        <legend>Atributo Principal</legend>
-        
-        <label>Nombre Atributo (Ej: "Presentación"):</label>
-        <input type="text" name="atributo_nombre">
-  
-        <div id="contenedorDetallesAtributo">
-          <label>Valores:</label>
-          <input type="text" name="valor_detalle_atributo[]" placeholder="Ej: Botella vidrio">
-          <!-- Botón para agregar más -->
-          <button type="button" onclick="agregarDetalleAtributo()">+ Agregar otro valor</button>
-        </div>
-      </fieldset>
-  
-      <!-- Presentaciones (variantes) -->
-      <fieldset>
-        <legend>Presentaciones</legend>
-  
-        <div id="contenedorPresentaciones">
-          <div class="presentacion">
-            <label>Nombre:</label>
-            <input type="text" name="presentaciones[nombre][]" placeholder="Ej: Six Pack">
-            
-            <label>Cantidad:</label>
-            <input type="number" step="1" name="presentaciones[cantidad][]">
-            
-            <label>Descripción:</label>
-            <textarea name="presentaciones[descripcion][]" placeholder="Paquete de 6 botellas"></textarea>
-          </div>
-          <button type="button" onclick="agregarPresentacion()">+ Agregar Presentación</button>
-        </div>
-      </fieldset>
-  
-      <!-- Alias / códigos rápidos -->
-      <fieldset>
-        <legend>Alias / Códigos de Búsqueda</legend>
-  
-        <div id="contenedorAlias">
-          <div class="alias">
-            <label>Tipo:</label>
-            <select name="alias[tipo][]">
-              <option value="codigo">Código rápido</option>
-              <option value="presentacion">Presentación</option>
-            </select>
-  
-            <label>Alias o Código:</label>
-            <input type="text" name="alias[alias][]">
-  
-            <label>Visible:</label>
-            <select name="alias[visible][]">
-              <option value="true">Sí</option>
-              <option value="false">No</option>
-            </select>
-          </div>
-          <button type="button" onclick="agregarAlias()">+ Agregar Alias</button>
-        </div>
-      </fieldset>
-  
-      <!-- Fotos -->
-      <fieldset>
-        <legend>Fotos del Producto</legend>
-  
-        <div id="contenedorFotos">
-          <input type="text" name="fotos[]" placeholder="URL de la imagen (https://...)">
-          <button type="button" onclick="agregarFoto()">+ Agregar Foto</button>
-        </div>
-      </fieldset>
-  
-      <!-- Ubicaciones físicas -->
-      <fieldset>
-        <legend>Ubicaciones y Precios</legend>
-  
-        <div id="contenedorUbicaciones">
-          <div class="ubicacion">
-            <label>Ubicación física ID:</label>
-            <input type="number" name="ubicaciones[ubicacion_fisica_id][]">
-  
-            <label>Negocio ID:</label>
-            <input type="number" name="ubicaciones[negocio_id][]">
-  
-            <label>Cantidad:</label>
-            <input type="number" name="ubicaciones[cantidad][]">
-  
-            <label>Precio Costo:</label>
-            <input type="number" step="0.01" name="ubicaciones[precio_costo][]">
-  
-            <label>¿Compartir?</label>
-            <select name="ubicaciones[compartir][]">
-              <option value="true">Sí</option>
-              <option value="false">No</option>
-            </select>
-  
-            <fieldset>
-              <legend>Precios de Venta</legend>
-              <div class="precio">
-                <label>Precio Venta:</label>
-                <input type="number" step="0.01" name="ubicaciones[precios][precio_venta][]">
-  
-                <label>Precio Base:</label>
-                <input type="number" step="0.01" name="ubicaciones[precios][precio_base][]">
-  
-                <label>Prioridad:</label>
-                <input type="number" name="ubicaciones[precios][prioridad][]">
-  
-                <label>Descripción:</label>
-                <input type="text" name="ubicaciones[precios][descripcion][]">
-              </div>
-            </fieldset>
-          </div>
-          <button type="button" onclick="agregarUbicacion()">+ Agregar Ubicación</button>
-        </div>
-      </fieldset>
-  
-      <!-- Botones -->
-      <div class="modal-footer">
-        <button type="submit">Guardar Producto</button>
-        <button type="button" onclick="cerrarModal()">Cancelar</button>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Formulario Detalle Producto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-6 font-sans">
+  <div class="max-w-5xl mx-auto bg-white rounded-xl shadow-md p-6 space-y-6">
+    <div class="flex justify-between items-center">
+      <h1 class="text-2xl font-bold text-gray-800">Editar / Agregar Producto</h1>
+      <div class="space-x-2">
+        <button class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Guardar</button>
+        <button class="bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400">Cancelar</button>
       </div>
-  
+    </div>
+
+    <!-- Datos generales -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-semibold">Nombre calculado</label>
+        <input type="text" class="w-full border px-3 py-2 rounded" value="Coca-Cola 1.5L RETORNABLE">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold">Marca</label>
+        <input type="text" class="w-full border px-3 py-2 rounded" value="PEPSI">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold">Medida</label>
+        <input type="number" step="0.01" class="w-full border px-3 py-2 rounded" value="2.50">
+      </div>
+      <div>
+        <label class="block text-sm font-semibold">Unidad de Medida</label>
+        <select class="w-full border px-3 py-2 rounded">
+          <option selected>lt</option>
+          <option>ml</option>
+          <option>kg</option>
+          <option>g</option>
+        </select>
+      </div>
+      <div class="md:col-span-2">
+        <label class="block text-sm font-semibold">Descripción</label>
+        <textarea class="w-full border px-3 py-2 rounded">Edición retornable con envase más grueso</textarea>
+      </div>
+    </div>
+
+    <!-- Alias -->
+    <div>
+      <h2 class="text-lg font-bold mt-6 mb-2">Alias</h2>
+      <div class="space-y-2" id="aliasList">
+        <input type="text" class="w-full border px-3 py-2 rounded" value="COCA-GDE-RET666">
+      </div>
+      <button class="mt-2 text-blue-600 hover:underline" onclick="addAlias()">+ Agregar alias</button>
+    </div>
+
+    <!-- Atributos -->
+    <div>
+      <h2 class="text-lg font-bold mt-6 mb-2">Atributo</h2>
+      <div class="grid grid-cols-2 gap-4">
+        <input type="text" class="border px-3 py-2 rounded" value="Envase Retornable" placeholder="Nombre del atributo">
+        <input type="text" class="border px-3 py-2 rounded" value="Botella Plástico Grueso" placeholder="Valor">
+      </div>
+    </div>
+
+    <!-- Precios -->
+    <div>
+      <h2 class="text-lg font-bold mt-6 mb-2">Precios</h2>
+      <div class="space-y-2" id="precioList">
+        <div class="grid grid-cols-3 gap-4">
+          <input type="text" class="border px-3 py-2 rounded" value="Venta especial" placeholder="Descripción">
+          <input type="number" class="border px-3 py-2 rounded" value="20.00" placeholder="Precio">
+          <select class="border px-3 py-2 rounded">
+            <option>Ubicación Física 1</option>
+          </select>
+        </div>
+      </div>
+      <button class="mt-2 text-blue-600 hover:underline" onclick="addPrecio()">+ Agregar precio</button>
+    </div>
+
+    <!-- Celdas -->
+    <div>
+      <h2 class="text-lg font-bold mt-6 mb-2">Ubicación física y celdas</h2>
+      <div class="space-y-2" id="celdaList">
+        <div class="grid grid-cols-3 gap-4">
+          <input type="text" class="border px-3 py-2 rounded" value="Celda 1">
+          <input type="number" class="border px-3 py-2 rounded" value="30" placeholder="Cantidad">
+          <input type="number" class="border px-3 py-2 rounded" value="20" placeholder="Cantidad adicional">
+        </div>
+      </div>
+      <button class="mt-2 text-blue-600 hover:underline" onclick="addCelda()">+ Agregar celda</button>
+    </div>
+
+    <!-- Componentes -->
+    <div>
+      <h2 class="text-lg font-bold mt-6 mb-2">Este producto forma parte de:</h2>
+      <ul class="list-disc list-inside text-sm">
+        <li>Producto ID 55 (cantidad: 1.00)</li>
+        <li>Producto ID 56 (cantidad: 2.00)</li>
+      </ul>
     </div>
   </div>
-    
+
+  <script>
+    function addAlias() {
+      const container = document.getElementById('aliasList');
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'w-full border px-3 py-2 rounded';
+      input.placeholder = 'Nuevo alias';
+      container.appendChild(input);
+    }
+
+    function addPrecio() {
+      const container = document.getElementById('precioList');
+      const div = document.createElement('div');
+      div.className = 'grid grid-cols-3 gap-4';
+      div.innerHTML = `
+        <input type="text" class="border px-3 py-2 rounded" placeholder="Descripción">
+        <input type="number" class="border px-3 py-2 rounded" placeholder="Precio">
+        <select class="border px-3 py-2 rounded">
+          <option>Ubicación Física 1</option>
+        </select>`;
+      container.appendChild(div);
+    }
+
+    function addCelda() {
+      const container = document.getElementById('celdaList');
+      const div = document.createElement('div');
+      div.className = 'grid grid-cols-3 gap-4';
+      div.innerHTML = `
+        <input type="text" class="border px-3 py-2 rounded" placeholder="Celda">
+        <input type="number" class="border px-3 py-2 rounded" placeholder="Cantidad">
+        <input type="number" class="border px-3 py-2 rounded" placeholder="Cantidad adicional">`;
+      container.appendChild(div);
+    }
+  </script>
+</body>
+</html>
