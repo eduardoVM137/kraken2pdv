@@ -1,8 +1,6 @@
 import { ProductoMultimedia } from '../models/producto_multimedia.js';
 import { db } from '../config/database.js';
 import { eq } from 'drizzle-orm';
-import * as schema from "../models/schema.js"; // ✅ NECESARIO para schema.DetalleProducto
-
 /**
  * Inserta múltiples archivos multimedia para un detalle de producto.
  * @param {any} tx - Transacción de Drizzle.

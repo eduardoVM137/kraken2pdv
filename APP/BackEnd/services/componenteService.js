@@ -1,8 +1,6 @@
 import { db } from "../config/database.js";
 import { Componente } from "../models/componente.js";
 import { eq } from "drizzle-orm";
-import * as schema from "../models/schema.js"; // ✅ NECESARIO para schema.DetalleProducto
-
 export const mostrarComponentesService = async () => {
   return await db.select().from(Componente);
 };

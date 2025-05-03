@@ -1,8 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { DetalleAtributo } from '../models/detalle_atributo.js';
 import { db } from '../config/database.js';
-import * as schema from "../models/schema.js"; // ✅ NECESARIO para schema.DetalleProducto
-
 export const buscarDetallesAtributoService = async (atributo_id) => {
   return await db
     .select()

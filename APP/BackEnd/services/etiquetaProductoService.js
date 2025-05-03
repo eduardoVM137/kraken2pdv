@@ -1,8 +1,6 @@
 import { db } from "../config/database.js";
 import { EtiquetaProducto } from "../models/etiqueta_producto.js";
 import { eq } from "drizzle-orm";
-import * as schema from "../models/schema.js"; // ✅ NECESARIO para schema.DetalleProducto
-
 export const mostrarEtiquetasService = async () => {
   return await db.select().from(EtiquetaProducto);
 };

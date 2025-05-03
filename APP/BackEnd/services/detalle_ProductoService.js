@@ -1,8 +1,6 @@
 import { db } from "../config/database.js";
 import { DetalleProducto } from "../models/detalle_producto.js";
 import { eq } from "drizzle-orm";
-import * as schema from "../models/schema.js"; // ✅ NECESARIO para schema.DetalleProducto
-
 // 🔹 Insertar
 export const insertarDetalleProductoService = async (data) => {
   try {
