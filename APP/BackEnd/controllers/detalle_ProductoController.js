@@ -9,7 +9,7 @@ import {
   buscarDetalleProductoIdService,
 } from "../services/detalle_ProductoService.js";
 import { insertarMovimientoStockServiceTx } from "../services/movimientoStockService.js";
-import { insertarStateServiceTx } from "../services/stateService.js";
+import { insertarStateServiceTx } from "../services/stateService.js"; 
 import {
   insertarAtributoServiceTx,
   insertarDetalleAtributosServiceTx
@@ -35,6 +35,8 @@ import { insertarComponenteProductoTx } from '../services/componenteService.js';
  
 import { insertarDetalleProductoCeldaTx } from '../services/detalle_producto_celdaService.js'; // <<-- Asegúrate de tener este service creado.
 
+
+
 export const insertarDetalleProductoController = async (req, res, next) => {
   try {
     const {
@@ -42,38 +44,31 @@ export const insertarDetalleProductoController = async (req, res, next) => {
       detalles_atributo = [],
       ubicaciones = [],
       etiquetas = [],
-      fotos = [], 
-      presentaciones = [], 
-      componentes = [], 
-      celdas = [], 
-      compartir = false,
+      fotos = [],
+      presentaciones = [],
+      componentes = [],
+      precios = [],
+      inventarios = [],
+      producto_ubicaciones = [],
       ...resto
     } = req.body;
 
+    if (!Array.isArray(producto_ubicaciones) || producto_ubicaciones.length === 0) {
+      return res.status(400).json({ message: "Se requiere al menos un producto_ubicacion con negocio_id, ubicacion_fisica_id y detalle_producto_id" });
+    }
+
     const resultado = await db.transaction(async (tx) => {
-      // 1. Insertar estado
-      const state = await insertarStateServiceTx(tx, {
-        tabla_afectada: "detalle_producto",
-      });
+      const state = await insertarStateServiceTx(tx, { tabla_afectada: "detalle_producto" });
       if (!state?.id) throw new Error("No se pudo generar el estado");
 
-      // 2. Insertar atributo y detalles si existen
-      let atributo_id = null;
-      if (atributo?.nombre) {
-        const atributoInsertado = await insertarAtributoServiceTx(tx, atributo);
-        if (!atributoInsertado?.id) throw new Error("No se pudo insertar el atributo");
-        atributo_id = atributoInsertado.id;
+      // await insertarDetalleStateServiceTx(tx, {
+      //   state_id: state.id,
+      //   descripcion: "Creación automática desde alta de detalle_producto",
+      //   usuario_id: req.usuario_id || null,
+      // });
 
-        if (Array.isArray(detalles_atributo) && detalles_atributo.length > 0) {
-          const detallesConID = detalles_atributo.map((detalle) => ({
-            ...detalle,
-            id_atributo: atributoInsertado.id,
-          }));
-          await insertarDetalleAtributosServiceTx(tx, detallesConID);
-        }
-      }
+      const atributo_id = await procesarAtributo(tx, atributo, detalles_atributo);
 
-      // 3. Insertar detalle_producto
       const detalleInsertado = await insertarDetalleProductoServiceTx(tx, {
         ...resto,
         atributo_id,
@@ -81,133 +76,16 @@ export const insertarDetalleProductoController = async (req, res, next) => {
       });
       if (!detalleInsertado?.id) throw new Error("No se pudo insertar el detalle del producto");
 
-      // 4. Insertar componentes si se proporcionan
-      if (Array.isArray(componentes) && componentes.length > 0) {
-        const lista = componentes.map(comp => ({
-          detalle_producto_hijo_id: detalleInsertado.id,
-          detalle_producto_padre_id: comp.detalle_producto_padre_id,
-          cantidad: comp.cantidad,
-        }));
-        await insertarComponenteProductoTx(tx, lista);
-      }
-      
-      
-      
+      await procesarComponentes(tx, componentes, detalleInsertado.id);
 
-      // 4. Insertar ubicaciones, inventario y precios
-      for (const u of ubicaciones) {
-        const movimiento = await insertarMovimientoStockServiceTx(tx, {
-          empresa_id: req.empresa_id || 1,
-          producto_id: resto.producto_id,
-          detalle_producto_id: detalleInsertado.id,
-          ubicacion_id: u.ubicacion_fisica_id,
-          cantidad: u.stock_actual,
-          precio_costo: u.precio_costo,
-          tipo_movimiento: 'ajuste_inicial',
-          motivo: 'Alta inicial del detalle producto',
-          usuario_id: req.usuario_id || null,
-        });
-        if (!movimiento?.id) throw new Error("No se pudo registrar el movimiento de stock");
+      const mapaVirtual = await procesarPresentacionesYAlias(tx, presentaciones, etiquetas, detalleInsertado.id);
 
-        const inventarioInsertado = await insertarInventarioDesdeMovimientoTx(tx, {
-          detalle_producto_id: detalleInsertado.id,
-          stock_actual: u.stock_actual,
-          stock_minimo: u.stock_minimo,
-          precio_costo: u.precio_costo,
-          ubicacion_fisica_id: u.ubicacion_fisica_id,
-          proveedor_id: null,
-          state_id: state.id,
-        });
-        // 5.1 Insertar detalle_producto_celda si hay celdas definidas
-    
-        
-        if (Array.isArray(u.celdas) && u.celdas.length > 0) {
-          const lista = u.celdas.map(celda => ({
-            detalle_producto_id: detalleInsertado.id,
-            inventario_id: inventarioInsertado.id,
-            celda_id: celda.celda_id,
-            contenedor_fisico_id: celda.contenedor_fisico_id,
-            cantidad: celda.cantidad,
-          }));
-          await insertarDetalleProductoCeldaTx(tx, lista);
-        }
+      const inventarioMap = await procesarInventarios(tx, inventarios, detalleInsertado, state, req);
+      const precioMap = await procesarPrecios(tx, precios, detalleInsertado, mapaVirtual);
 
-      
-      
+      await procesarProductoUbicacionFlexible(tx, producto_ubicaciones, detalleInsertado.id, inventarioMap, precioMap, req);
 
-
-
-        const preciosInsertados = [];
-        if (u.precios?.length > 0) {
-          for (const p of u.precios) {
-            const precio = await insertarPrecioDesdeMovimientoTx(tx, {
-              ...p,
-              detalle_producto_id: detalleInsertado.id,
-              ubicacion_fisica_id: u.ubicacion_fisica_id,
-              fecha_inicio: p.fecha_inicio ? new Date(p.fecha_inicio) : null,
-              fecha_fin: p.fecha_fin ? new Date(p.fecha_fin) : null,
-            });
-            preciosInsertados.push(precio);
-          }
-        }
-
-        await insertarProductoUbicacionDesdeMovimientoTx(tx, {
-          detalle_producto_id: detalleInsertado.id,
-          inventario_id: inventarioInsertado.id,
-          negocio_id: req.negocio_id || 1,
-          ubicacion_fisica_id: u.ubicacion_fisica_id,
-          precio_id: preciosInsertados[0]?.id || null,
-          compartir: u.compartir === true,
-        });
-      }
-      
-  // 5. Insertar etiquetas (alias normales y alias para presentaciones)
-  
-  const mapaVirtual = {}; // idVirtual -> id real
-
-  if (Array.isArray(presentaciones) && presentaciones.length > 0) {
-    for (const pres of presentaciones) {
-      const nueva = await insertarPresentacionServiceTx(tx, {
-        detalle_producto_id: detalleInsertado.id,
-        nombre: pres.nombre,
-        cantidad: pres.cantidad,
-        descripcion: pres.descripcion
-      });
-      if (pres.idVirtualPresentacion) {
-        mapaVirtual[pres.idVirtualPresentacion] = nueva.id;
-      }
-    }
-  }
-
-  if (Array.isArray(etiquetas) && etiquetas.length > 0) {
-    for (const etiqueta of etiquetas) {
-      let presentacionId = etiqueta.presentacion_id || null;
-
-      if (etiqueta.idVirtualPresentacion) {
-        presentacionId = mapaVirtual[etiqueta.idVirtualPresentacion] || null;
-      }
-
-      await insertarAliasProductoTx(tx, [{
-        detalle_producto_id: detalleInsertado.id,
-        tipo: etiqueta.tipo,
-        alias: etiqueta.alias,
-        visible: etiqueta.visible ?? true,
-        presentacion_id: presentacionId
-      }]);
-    }
-  }
-
-      // 6. Insertar multimedia
-      if (Array.isArray(fotos) && fotos.length > 0) {
-        await insertarMultimediaProductoTx(tx, fotos.map(f => ({
-          detalle_producto_id: detalleInsertado.id,
-          url_archivo: f
-        })));
-      }
-      
- 
-
-      
+      await procesarMultimedia(tx, fotos, detalleInsertado.id);
 
       return detalleInsertado;
     });
@@ -218,6 +96,960 @@ export const insertarDetalleProductoController = async (req, res, next) => {
     next(error);
   }
 };
+
+const procesarAtributo = async (tx, atributo, detalles_atributo) => {
+  if (!atributo?.nombre) return null;
+  const atributoInsertado = await insertarAtributoServiceTx(tx, atributo);
+  if (!atributoInsertado?.id) throw new Error("No se pudo insertar el atributo");
+
+  if (detalles_atributo.length > 0) {
+    const detallesConID = detalles_atributo.map(det => ({ ...det, id_atributo: atributoInsertado.id }));
+    await insertarDetalleAtributosServiceTx(tx, detallesConID);
+  }
+  return atributoInsertado.id;
+};
+const procesarComponentes = async (tx, componentes, detalleId) => {
+  if (componentes.length === 0) return;
+
+  const lista = componentes.map(c => ({
+    detalle_producto_hijo_id: detalleId,
+    detalle_producto_padre_id: c.detalle_producto_padre_id,
+    cantidad: c.cantidad,
+  }));
+
+  const res = await insertarComponenteProductoTx(tx, lista);
+
+  if (!res) {
+    // Esto activará el rollback porque se lanza dentro de la transacción
+    throw new Error("No se pudieron insertar los componentes del producto");
+  }
+};
+ // Procesa presentaciones y etiquetas asociadas a un detalle_producto
+const procesarPresentacionesYAlias = async (tx, presentaciones, etiquetas, detalleId) => {
+  const mapaVirtual = {};
+
+  if (presentaciones.length > 0) {
+    for (const pres of presentaciones) {
+      const nueva = await insertarPresentacionServiceTx(tx, {
+        detalle_producto_id: detalleId,
+        nombre: pres.nombre,
+        cantidad: pres.cantidad,
+        descripcion: pres.descripcion ?? null,
+      });
+
+      // Verificación explícita para asegurar rollback si falla la inserción
+      if (!nueva?.id) {
+        throw new Error("No se pudo insertar la presentación");
+      }
+
+      // Asocia ID virtual con ID real de la presentación
+      if (pres.idVirtualPresentacion) {
+        mapaVirtual[pres.idVirtualPresentacion] = nueva.id;
+      }
+    }
+  }
+
+  if (etiquetas.length > 0) {
+    for (const etiqueta of etiquetas) {
+      let presentacionId = etiqueta.presentacion_id || null;
+
+      if (etiqueta.idVirtualPresentacion) {
+        presentacionId = mapaVirtual[etiqueta.idVirtualPresentacion] || null;
+      }
+
+      const res = await insertarAliasProductoTx(tx, [{
+        detalle_producto_id: detalleId,
+        tipo: etiqueta.tipo,
+        alias: etiqueta.alias,
+        visible: etiqueta.visible ?? true,
+        presentacion_id: presentacionId
+      }]);
+
+      // Validación explícita para activar rollback si la inserción falla
+      if (!res) {
+        throw new Error("No se pudo insertar el alias del producto");
+      }
+    }
+  }
+
+  return mapaVirtual;
+};
+ // Procesa la inserción de inventarios asociados a un detalle_producto
+const procesarInventarios = async (tx, inventarios, detalle, state, req) => {
+  const map = {};
+  for (const inv of inventarios) {
+    const movimiento = await insertarMovimientoStockServiceTx(tx, {
+      empresa_id: req.empresa_id || 1,
+      producto_id: detalle.producto_id,
+      detalle_producto_id: detalle.id,
+      ubicacion_id: inv.ubicacion_fisica_id,
+      cantidad: inv.stock_actual,
+      precio_costo: inv.precio_costo,
+      tipo_movimiento: 'ajuste_inicial',
+      motivo: 'Alta inventario',
+      usuario_id: req.usuario_id || null,
+    });
+
+    // Validación para activar rollback si falla la inserción del movimiento
+    if (!movimiento?.id) throw new Error("No se pudo registrar movimiento_stock para inventario");
+
+    const inventarioInsertado = await insertarInventarioDesdeMovimientoTx(tx, {
+      detalle_producto_id: detalle.id,
+      stock_actual: inv.stock_actual,
+      stock_minimo: inv.stock_minimo,
+      precio_costo: inv.precio_costo,
+      ubicacion_fisica_id: inv.ubicacion_fisica_id,
+      proveedor_id: null,
+      state_id: state.id,
+    });
+
+    // Validación explícita para activar rollback si no se inserta el inventario
+    if (!inventarioInsertado?.id) throw new Error("No se pudo insertar el inventario");
+
+    if (Array.isArray(inv.celdas) && inv.celdas.length > 0) {
+      const lista = inv.celdas.map(celda => ({
+        detalle_producto_id: detalle.id,
+        inventario_id: inventarioInsertado.id,
+        celda_id: celda.celda_id,
+        contenedor_fisico_id: celda.contenedor_fisico_id,
+        cantidad: celda.cantidad,
+      }));
+      const celdaRes = await insertarDetalleProductoCeldaTx(tx, lista);
+
+      // Validación explícita para asegurar rollback si falla la inserción de celdas
+      if (!celdaRes) throw new Error("No se pudo insertar detalle_producto_celda");
+    }
+
+    if (inv.idVirtual) {
+      map[inv.idVirtual] = inventarioInsertado.id;
+    }
+  }
+  return map;
+};
+
+// Procesa los precios asociados al detalle_producto y presentaciones
+const procesarPrecios = async (tx, precios, detalle, mapaVirtual) => {
+  const map = {};
+  for (const p of precios) {
+    let presentacion_id = p.presentacion_id || null;
+    if (p.idVirtualPresentacion) {
+      presentacion_id = mapaVirtual[p.idVirtualPresentacion] || null;
+    }
+
+    const precio = await insertarPrecioDesdeMovimientoTx(tx, {
+      ...p,
+      detalle_producto_id: detalle.id,
+      presentacion_id,
+      fecha_inicio: p.fecha_inicio ? new Date(p.fecha_inicio) : null,
+      fecha_fin: p.fecha_fin ? new Date(p.fecha_fin) : null,
+    });
+
+    // Validación explícita para asegurar rollback si falla la inserción del precio
+    if (!precio?.id) throw new Error("No se pudo insertar el precio del producto");
+
+    if (p.idVirtual) {
+      map[p.idVirtual] = precio.id;
+    }
+  }
+  return map;
+};
+// Procesa y vincula ubicaciones lógicas de un producto
+const procesarProductoUbicacionFlexible = async (tx, ubicaciones, detalle_producto_id, inventarioMap, precioMap, req) => {
+  for (const item of ubicaciones) {
+    const { idVirtualInventario, idVirtualPrecio, ubicacion_fisica_id, negocio_id, compartir } = item;
+
+    if (!ubicacion_fisica_id || !negocio_id) {
+      throw new Error("Cada producto_ubicacion debe incluir ubicacion_fisica_id y negocio_id");
+    }
+
+    const inventario_id = idVirtualInventario ? inventarioMap[idVirtualInventario] : null;
+    const precio_id = idVirtualPrecio ? precioMap[idVirtualPrecio] : null;
+
+    const inserted = await insertarProductoUbicacionDesdeMovimientoTx(tx, {
+      detalle_producto_id,
+      inventario_id,
+      precio_id,
+      ubicacion_fisica_id,
+      negocio_id,
+      compartir: compartir === true,
+    });
+
+    // Validación explícita para asegurar rollback si falla la inserción de la relación producto-ubicación
+    if (!inserted) throw new Error("No se pudo insertar producto_ubicacion");
+  }
+};
+// Procesa archivos multimedia asociados al detalle_producto
+const procesarMultimedia = async (tx, fotos, detalleId) => {
+  if (fotos.length > 0) {
+    const multimedia = fotos.map(f => ({
+      detalle_producto_id: detalleId,
+      url_archivo: f
+    }));
+
+    const inserted = await insertarMultimediaProductoTx(tx, multimedia);
+
+    // Validación explícita para asegurar rollback si falla la inserción
+    if (!inserted) throw new Error("No se pudo insertar archivos multimedia");
+  }
+};
+
+
+
+
+
+
+
+
+
+// export const insertarDetalleProductoController = async (req, res, next) => {
+//   try {
+//     const {
+//       atributo,
+//       detalles_atributo = [],
+//       ubicaciones = [],
+//       etiquetas = [],
+//       fotos = [],
+//       presentaciones = [],
+//       componentes = [],
+//       ...resto
+//     } = req.body;
+
+//     const resultado = await db.transaction(async (tx) => {
+//       const state = await insertarStateServiceTx(tx, { tabla_afectada: "detalle_producto" });
+//       if (!state?.id) throw new Error("No se pudo generar el estado");
+
+//       await insertarDetalleStateServiceTx(tx, {
+//         state_id: state.id,
+//         descripcion: "Creación automática desde alta de detalle_producto",
+//         usuario_id: req.usuario_id || null,
+//       });
+
+//       const atributo_id = await procesarAtributo(tx, atributo, detalles_atributo);
+
+//       const detalleInsertado = await insertarDetalleProductoServiceTx(tx, {
+//         ...resto,
+//         atributo_id,
+//         state_id: state.id,
+//       });
+//       if (!detalleInsertado?.id) throw new Error("No se pudo insertar el detalle del producto");
+
+//       await procesarComponentes(tx, componentes, detalleInsertado.id);
+
+//       const mapaVirtual = await procesarUbicaciones(tx, ubicaciones, detalleInsertado, state, req, resto.producto_id);
+
+//       await procesarPresentacionesYAlias(tx, presentaciones, etiquetas, detalleInsertado.id, mapaVirtual);
+
+//       await procesarMultimedia(tx, fotos, detalleInsertado.id);
+
+//       return detalleInsertado;
+//     });
+
+//     return res.status(201).json({ message: "Detalle producto creado", data: resultado });
+//   } catch (error) {
+//     console.error("Error en transacción de detalle_producto:", error);
+//     next(error);
+//   }
+// };
+
+// // Funciones auxiliares modulares y reutilizables
+
+// const procesarAtributo = async (tx, atributo, detalles_atributo) => {
+//   if (!atributo?.nombre) return null;
+//   const atributoInsertado = await insertarAtributoServiceTx(tx, atributo);
+//   if (!atributoInsertado?.id) throw new Error("No se pudo insertar el atributo");
+
+//   if (detalles_atributo.length > 0) {
+//     const detallesConID = detalles_atributo.map(det => ({ ...det, id_atributo: atributoInsertado.id }));
+//     await insertarDetalleAtributosServiceTx(tx, detallesConID);
+//   }
+//   return atributoInsertado.id;
+// };
+
+// const procesarComponentes = async (tx, componentes, detalleId) => {
+//   if (componentes.length === 0) return;
+//   const lista = componentes.map(c => ({
+//     detalle_producto_hijo_id: detalleId,
+//     detalle_producto_padre_id: c.detalle_producto_padre_id,
+//     cantidad: c.cantidad,
+//   }));
+//   await insertarComponenteProductoTx(tx, lista);
+// };
+
+// const procesarUbicaciones = async (tx, ubicaciones, detalle, state, req, producto_id) => {
+//   const mapaVirtual = {};
+
+//   for (const u of ubicaciones) {
+//     let inventarioInsertado = null;
+//     let precioPrincipal = null;
+
+//     if (u.stock_actual != null) {
+//       const movimiento = await insertarMovimientoStockServiceTx(tx, {
+//         empresa_id: req.empresa_id || 1,
+//         producto_id,
+//         detalle_producto_id: detalle.id,
+//         ubicacion_id: u.ubicacion_fisica_id,
+//         cantidad: u.stock_actual,
+//         precio_costo: u.precio_costo,
+//         tipo_movimiento: 'ajuste_inicial',
+//         motivo: 'Alta inicial del detalle producto',
+//         usuario_id: req.usuario_id || null,
+//       });
+//       if (!movimiento?.id) throw new Error("No se pudo registrar el movimiento de stock");
+
+//       inventarioInsertado = await insertarInventarioDesdeMovimientoTx(tx, {
+//         detalle_producto_id: detalle.id,
+//         stock_actual: u.stock_actual,
+//         stock_minimo: u.stock_minimo,
+//         precio_costo: u.precio_costo,
+//         ubicacion_fisica_id: u.ubicacion_fisica_id,
+//         proveedor_id: null,
+//         state_id: state.id,
+//       });
+
+//       if (Array.isArray(u.celdas) && u.celdas.length > 0) {
+//         const lista = u.celdas.map(celda => ({
+//           detalle_producto_id: detalle.id,
+//           inventario_id: inventarioInsertado.id,
+//           celda_id: celda.celda_id,
+//           contenedor_fisico_id: celda.contenedor_fisico_id,
+//           cantidad: celda.cantidad,
+//         }));
+//         await insertarDetalleProductoCeldaTx(tx, lista);
+//       }
+//     }
+
+//     if (u.precios?.length > 0) {
+//       for (const p of u.precios) {
+//         let presentacion_id = null;
+//         if (p.idVirtualPresentacion) {
+//           presentacion_id = mapaVirtual[p.idVirtualPresentacion] || null;
+//         }
+//         const precio = await insertarPrecioDesdeMovimientoTx(tx, {
+//           ...p,
+//           detalle_producto_id: detalle.id,
+//           ubicacion_fisica_id: u.ubicacion_fisica_id,
+//           presentacion_id,
+//           fecha_inicio: p.fecha_inicio ? new Date(p.fecha_inicio) : null,
+//           fecha_fin: p.fecha_fin ? new Date(p.fecha_fin) : null,
+//         });
+//         if (!precioPrincipal) precioPrincipal = precio;
+//       }
+//     }
+
+//     await insertarProductoUbicacionDesdeMovimientoTx(tx, {
+//       detalle_producto_id: detalle.id,
+//       inventario_id: inventarioInsertado?.id || null,
+//       negocio_id: req.negocio_id || 1,
+//       ubicacion_fisica_id: u.ubicacion_fisica_id,
+//       precio_id: precioPrincipal?.id || null,
+//       compartir: u.compartir === true,
+//     });
+//   }
+
+//   return mapaVirtual;
+// };
+
+// const procesarPresentacionesYAlias = async (tx, presentaciones, etiquetas, detalleId, mapaVirtual) => {
+//   if (presentaciones.length > 0) {
+//     for (const pres of presentaciones) {
+//       const nueva = await insertarPresentacionServiceTx(tx, {
+//         detalle_producto_id: detalleId,
+//         nombre: pres.nombre,
+//         cantidad: pres.cantidad,
+//         descripcion: pres.descripcion ?? null,
+//       });
+//       if (pres.idVirtualPresentacion) {
+//         mapaVirtual[pres.idVirtualPresentacion] = nueva.id;
+//       }
+//     }
+//   }
+
+//   if (etiquetas.length > 0) {
+//     for (const etiqueta of etiquetas) {
+//       let presentacionId = etiqueta.presentacion_id || null;
+//       if (etiqueta.idVirtualPresentacion) {
+//         presentacionId = mapaVirtual[etiqueta.idVirtualPresentacion] || null;
+//       }
+//       await insertarAliasProductoTx(tx, [{
+//         detalle_producto_id: detalleId,
+//         tipo: etiqueta.tipo,
+//         alias: etiqueta.alias,
+//         visible: etiqueta.visible ?? true,
+//         presentacion_id: presentacionId
+//       }]);
+//     }
+//   }
+// };
+
+// const procesarMultimedia = async (tx, fotos, detalleId) => {
+//   if (fotos.length > 0) {
+//     await insertarMultimediaProductoTx(tx, fotos.map(f => ({
+//       detalle_producto_id: detalleId,
+//       url_archivo: f
+//     })));
+//   }
+// };
+
+
+// export const insertarDetalleProductoController = async (req, res, next) => {
+//   try {
+//     const {
+//       atributo,
+//       detalles_atributo = [],
+//       ubicaciones = [],
+//       etiquetas = [],
+//       fotos = [],
+//       presentaciones = [],
+//       componentes = [],
+//       ...resto
+//     } = req.body;
+
+//     const resultado = await db.transaction(async (tx) => {
+//       // 1. Insertar estado y detalle_state
+//       const state = await insertarStateServiceTx(tx, {
+//         tabla_afectada: "detalle_producto",
+//       });
+//       if (!state?.id) throw new Error("No se pudo generar el estado");
+
+//       await insertarDetalleStateServiceTx(tx, {
+//         state_id: state.id,
+//         descripcion: "Creación automática desde alta de detalle_producto",
+//         usuario_id: req.usuario_id || null,
+//       });
+
+//       // 2. Insertar atributo y detalles
+//       let atributo_id = null;
+//       if (atributo?.nombre) {
+//         const atributoInsertado = await insertarAtributoServiceTx(tx, atributo);
+//         if (!atributoInsertado?.id) throw new Error("No se pudo insertar el atributo");
+//         atributo_id = atributoInsertado.id;
+
+//         if (detalles_atributo.length > 0) {
+//           const detallesConID = detalles_atributo.map(det => ({
+//             ...det,
+//             id_atributo: atributo_id,
+//           }));
+//           await insertarDetalleAtributosServiceTx(tx, detallesConID);
+//         }
+//       }
+
+//       // 3. Insertar detalle_producto
+//       const detalleInsertado = await insertarDetalleProductoServiceTx(tx, {
+//         ...resto,
+//         atributo_id,
+//         state_id: state.id,
+//       });
+//       if (!detalleInsertado?.id) throw new Error("No se pudo insertar el detalle del producto");
+
+//       // 4. Insertar componentes
+//       if (componentes.length > 0) {
+//         const listaComponentes = componentes.map(comp => ({
+//           detalle_producto_hijo_id: detalleInsertado.id,
+//           detalle_producto_padre_id: comp.detalle_producto_padre_id,
+//           cantidad: comp.cantidad,
+//         }));
+//         await insertarComponenteProductoTx(tx, listaComponentes);
+//       }
+
+//       // 5. Insertar ubicaciones, inventario, movimiento_stock, precios, producto_ubicacion, celdas
+//       const mapaVirtual = {}; // para presentaciones
+
+//       for (const u of ubicaciones) {
+//         let inventarioInsertado = null;
+//         let precioPrincipal = null;
+
+//         if (u.stock_actual != null) {
+//           const movimiento = await insertarMovimientoStockServiceTx(tx, {
+//             empresa_id: req.empresa_id || 1,
+//             producto_id: resto.producto_id,
+//             detalle_producto_id: detalleInsertado.id,
+//             ubicacion_id: u.ubicacion_fisica_id,
+//             cantidad: u.stock_actual,
+//             precio_costo: u.precio_costo,
+//             tipo_movimiento: 'ajuste_inicial',
+//             motivo: 'Alta inicial del detalle producto',
+//             usuario_id: req.usuario_id || null,
+//           });
+//           if (!movimiento?.id) throw new Error("No se pudo registrar el movimiento de stock");
+
+//           inventarioInsertado = await insertarInventarioDesdeMovimientoTx(tx, {
+//             detalle_producto_id: detalleInsertado.id,
+//             stock_actual: u.stock_actual,
+//             stock_minimo: u.stock_minimo,
+//             precio_costo: u.precio_costo,
+//             ubicacion_fisica_id: u.ubicacion_fisica_id,
+//             proveedor_id: null,
+//             state_id: state.id,
+//           });
+
+//           if (Array.isArray(u.celdas) && u.celdas.length > 0) {
+//             const lista = u.celdas.map(celda => ({
+//               detalle_producto_id: detalleInsertado.id,
+//               inventario_id: inventarioInsertado.id,
+//               celda_id: celda.celda_id,
+//               contenedor_fisico_id: celda.contenedor_fisico_id,
+//               cantidad: celda.cantidad,
+//             }));
+//             await insertarDetalleProductoCeldaTx(tx, lista);
+//           }
+//         }
+
+//         if (u.precios?.length > 0) {
+//           for (const p of u.precios) {
+//             let presentacion_id = null;
+//             if (p.idVirtualPresentacion) {
+//               presentacion_id = mapaVirtual[p.idVirtualPresentacion] || null;
+//             }
+//             const precio = await insertarPrecioDesdeMovimientoTx(tx, {
+//               ...p,
+//               detalle_producto_id: detalleInsertado.id,
+//               ubicacion_fisica_id: u.ubicacion_fisica_id,
+//               presentacion_id,
+//               fecha_inicio: p.fecha_inicio ? new Date(p.fecha_inicio) : null,
+//               fecha_fin: p.fecha_fin ? new Date(p.fecha_fin) : null,
+//             });
+//             if (!precioPrincipal) precioPrincipal = precio;
+//           }
+//         }
+
+//         await insertarProductoUbicacionDesdeMovimientoTx(tx, {
+//           detalle_producto_id: detalleInsertado.id,
+//           inventario_id: inventarioInsertado?.id || null,
+//           negocio_id: req.negocio_id || 1,
+//           ubicacion_fisica_id: u.ubicacion_fisica_id,
+//           precio_id: precioPrincipal?.id || null,
+//           compartir: u.compartir === true,
+//         });
+//       }
+
+//       // 6. Presentaciones y etiquetas (alias)
+//       if (Array.isArray(presentaciones) && presentaciones.length > 0) {
+//         for (const pres of presentaciones) {
+//           const nueva = await insertarPresentacionServiceTx(tx, {
+//             detalle_producto_id: detalleInsertado.id,
+//             nombre: pres.nombre,
+//             cantidad: pres.cantidad,
+//             descripcion: pres.descripcion ?? null,
+//           });
+//           if (pres.idVirtualPresentacion) {
+//             mapaVirtual[pres.idVirtualPresentacion] = nueva.id;
+//           }
+//         }
+//       }
+
+//       if (Array.isArray(etiquetas) && etiquetas.length > 0) {
+//         for (const etiqueta of etiquetas) {
+//           let presentacionId = etiqueta.presentacion_id || null;
+
+//           if (etiqueta.idVirtualPresentacion) {
+//             presentacionId = mapaVirtual[etiqueta.idVirtualPresentacion] || null;
+//           }
+
+//           await insertarAliasProductoTx(tx, [{
+//             detalle_producto_id: detalleInsertado.id,
+//             tipo: etiqueta.tipo,
+//             alias: etiqueta.alias,
+//             visible: etiqueta.visible ?? true,
+//             presentacion_id: presentacionId
+//           }]);
+//         }
+//       }
+
+//       // 7. Multimedia
+//       if (Array.isArray(fotos) && fotos.length > 0) {
+//         await insertarMultimediaProductoTx(tx, fotos.map(f => ({
+//           detalle_producto_id: detalleInsertado.id,
+//           url_archivo: f
+//         })));
+//       }
+
+//       return detalleInsertado;
+//     });
+
+//     return res.status(201).json({ message: "Detalle producto creado", data: resultado });
+//   } catch (error) {
+//     console.error("Error en transacción de detalle_producto:", error);
+//     next(error);
+//   }
+// };
+
+
+
+
+
+
+// export const insertarDetalleProductoController = async (req, res, next) => {
+//   try {
+//     const {
+//       atributo,
+//       detalles_atributo = [],
+//       ubicaciones = [],
+//       etiquetas = [],
+//       fotos = [], 
+//       presentaciones = [], 
+//       componentes = [], 
+//       celdas = [], 
+//       compartir = false,
+//       ...resto
+//     } = req.body;
+
+//     const resultado = await db.transaction(async (tx) => {
+//       // 1. Insertar estado
+//       const state = await insertarStateServiceTx(tx, {
+//         tabla_afectada: "detalle_producto",
+//       });
+//       if (!state?.id) throw new Error("No se pudo generar el estado");
+
+//       // 2. Insertar atributo y detalles si existen
+//       let atributo_id = null;
+//       if (atributo?.nombre) {
+//         const atributoInsertado = await insertarAtributoServiceTx(tx, atributo);
+//         if (!atributoInsertado?.id) throw new Error("No se pudo insertar el atributo");
+//         atributo_id = atributoInsertado.id;
+
+//         if (Array.isArray(detalles_atributo) && detalles_atributo.length > 0) {
+//           const detallesConID = detalles_atributo.map((detalle) => ({
+//             ...detalle,
+//             id_atributo: atributoInsertado.id,
+//           }));
+//           await insertarDetalleAtributosServiceTx(tx, detallesConID);
+//         }
+//       }
+
+//       // 3. Insertar detalle_producto
+//       const detalleInsertado = await insertarDetalleProductoServiceTx(tx, {
+//         ...resto,
+//         atributo_id,
+//         state_id: state.id,
+//       });
+//       if (!detalleInsertado?.id) throw new Error("No se pudo insertar el detalle del producto");
+
+//       // 4. Insertar componentes si se proporcionan
+//       if (Array.isArray(componentes) && componentes.length > 0) {
+//         const lista = componentes.map(comp => ({
+//           detalle_producto_hijo_id: detalleInsertado.id,
+//           detalle_producto_padre_id: comp.detalle_producto_padre_id,
+//           cantidad: comp.cantidad,
+//         }));
+//         await insertarComponenteProductoTx(tx, lista);
+//       }
+      
+      
+      
+
+//       // 4. Insertar ubicaciones, inventario y precios
+//       for (const u of ubicaciones) {
+//         const movimiento = await insertarMovimientoStockServiceTx(tx, {
+//           empresa_id: req.empresa_id || 1,
+//           producto_id: resto.producto_id,
+//           detalle_producto_id: detalleInsertado.id,
+//           ubicacion_id: u.ubicacion_fisica_id,
+//           cantidad: u.stock_actual,
+//           precio_costo: u.precio_costo,
+//           tipo_movimiento: 'ajuste_inicial',
+//           motivo: 'Alta inicial del detalle producto',
+//           usuario_id: req.usuario_id || null,
+//         });
+//         if (!movimiento?.id) throw new Error("No se pudo registrar el movimiento de stock");
+
+//         const inventarioInsertado = await insertarInventarioDesdeMovimientoTx(tx, {
+//           detalle_producto_id: detalleInsertado.id,
+//           stock_actual: u.stock_actual,
+//           stock_minimo: u.stock_minimo,
+//           precio_costo: u.precio_costo,
+//           ubicacion_fisica_id: u.ubicacion_fisica_id,
+//           proveedor_id: null,
+//           state_id: state.id,
+//         });
+//         // 5.1 Insertar detalle_producto_celda si hay celdas definidas
+    
+        
+//         if (Array.isArray(u.celdas) && u.celdas.length > 0) {
+//           const lista = u.celdas.map(celda => ({
+//             detalle_producto_id: detalleInsertado.id,
+//             inventario_id: inventarioInsertado.id,
+//             celda_id: celda.celda_id,
+//             contenedor_fisico_id: celda.contenedor_fisico_id,
+//             cantidad: celda.cantidad,
+//           }));
+//           await insertarDetalleProductoCeldaTx(tx, lista);
+//         }
+
+      
+      
+
+
+
+//         const preciosInsertados = [];
+//         if (u.precios?.length > 0) {
+//           for (const p of u.precios) {
+//             const precio = await insertarPrecioDesdeMovimientoTx(tx, {
+//               ...p,
+//               detalle_producto_id: detalleInsertado.id,
+//               ubicacion_fisica_id: u.ubicacion_fisica_id,
+//               fecha_inicio: p.fecha_inicio ? new Date(p.fecha_inicio) : null,
+//               fecha_fin: p.fecha_fin ? new Date(p.fecha_fin) : null,
+//             });
+//             preciosInsertados.push(precio);
+//           }
+//         }
+
+//         await insertarProductoUbicacionDesdeMovimientoTx(tx, {
+//           detalle_producto_id: detalleInsertado.id,
+//           inventario_id: inventarioInsertado.id,
+//           negocio_id: req.negocio_id || 1,
+//           ubicacion_fisica_id: u.ubicacion_fisica_id,
+//           precio_id: preciosInsertados[0]?.id || null,
+//           compartir: u.compartir === true,
+//         });
+//       }
+      
+//   // 5. Insertar etiquetas (alias normales y alias para presentaciones)
+  
+//   const mapaVirtual = {}; // idVirtual -> id real
+
+//   if (Array.isArray(presentaciones) && presentaciones.length > 0) {
+//     for (const pres of presentaciones) {
+//       const nueva = await insertarPresentacionServiceTx(tx, {
+//         detalle_producto_id: detalleInsertado.id,
+//         nombre: pres.nombre,
+//         cantidad: pres.cantidad,
+//         descripcion: pres.descripcion
+//       });
+//       if (pres.idVirtualPresentacion) {
+//         mapaVirtual[pres.idVirtualPresentacion] = nueva.id;
+//       }
+//     }
+//   }
+
+//   if (Array.isArray(etiquetas) && etiquetas.length > 0) {
+//     for (const etiqueta of etiquetas) {
+//       let presentacionId = etiqueta.presentacion_id || null;
+
+//       if (etiqueta.idVirtualPresentacion) {
+//         presentacionId = mapaVirtual[etiqueta.idVirtualPresentacion] || null;
+//       }
+
+//       await insertarAliasProductoTx(tx, [{
+//         detalle_producto_id: detalleInsertado.id,
+//         tipo: etiqueta.tipo,
+//         alias: etiqueta.alias,
+//         visible: etiqueta.visible ?? true,
+//         presentacion_id: presentacionId
+//       }]);
+//     }
+//   }
+
+//       // 6. Insertar multimedia
+//       if (Array.isArray(fotos) && fotos.length > 0) {
+//         await insertarMultimediaProductoTx(tx, fotos.map(f => ({
+//           detalle_producto_id: detalleInsertado.id,
+//           url_archivo: f
+//         })));
+//       }
+      
+ 
+
+      
+
+//       return detalleInsertado;
+//     });
+
+//     return res.status(201).json({ message: "Detalle producto creado", data: resultado });
+//   } catch (error) {
+//     console.error("Error en transacción de detalle_producto:", error);
+//     next(error);
+//   }
+// };
+
+
+
+
+
+
+// export const insertarDetalleProductoController = async (req, res, next) => {
+//   try {
+//     const {
+//       atributo,
+//       detalles_atributo = [],
+//       ubicaciones = [],
+//       etiquetas = [],
+//       fotos = [], 
+//       presentaciones = [], 
+//       componentes = [], 
+//       celdas = [], 
+//       compartir = false,
+//       ...resto
+//     } = req.body;
+
+//     const resultado = await db.transaction(async (tx) => {
+//       // 1. Insertar estado
+//       const state = await insertarStateServiceTx(tx, {
+//         tabla_afectada: "detalle_producto",
+//       });
+//       if (!state?.id) throw new Error("No se pudo generar el estado");
+
+//       // 2. Insertar atributo y detalles si existen
+//       let atributo_id = null;
+//       if (atributo?.nombre) {
+//         const atributoInsertado = await insertarAtributoServiceTx(tx, atributo);
+//         if (!atributoInsertado?.id) throw new Error("No se pudo insertar el atributo");
+//         atributo_id = atributoInsertado.id;
+
+//         if (Array.isArray(detalles_atributo) && detalles_atributo.length > 0) {
+//           const detallesConID = detalles_atributo.map((detalle) => ({
+//             ...detalle,
+//             id_atributo: atributoInsertado.id,
+//           }));
+//           await insertarDetalleAtributosServiceTx(tx, detallesConID);
+//         }
+//       }
+
+//       // 3. Insertar detalle_producto
+//       const detalleInsertado = await insertarDetalleProductoServiceTx(tx, {
+//         ...resto,
+//         atributo_id,
+//         state_id: state.id,
+//       });
+//       if (!detalleInsertado?.id) throw new Error("No se pudo insertar el detalle del producto");
+
+//       // 4. Insertar componentes si se proporcionan
+//       if (Array.isArray(componentes) && componentes.length > 0) {
+//         const lista = componentes.map(comp => ({
+//           detalle_producto_hijo_id: detalleInsertado.id,
+//           detalle_producto_padre_id: comp.detalle_producto_padre_id,
+//           cantidad: comp.cantidad,
+//         }));
+//         await insertarComponenteProductoTx(tx, lista);
+//       }
+      
+      
+      
+
+//       // 4. Insertar ubicaciones, inventario y precios
+//       for (const u of ubicaciones) {
+//         const movimiento = await insertarMovimientoStockServiceTx(tx, {
+//           empresa_id: req.empresa_id || 1,
+//           producto_id: resto.producto_id,
+//           detalle_producto_id: detalleInsertado.id,
+//           ubicacion_id: u.ubicacion_fisica_id,
+//           cantidad: u.stock_actual,
+//           precio_costo: u.precio_costo,
+//           tipo_movimiento: 'ajuste_inicial',
+//           motivo: 'Alta inicial del detalle producto',
+//           usuario_id: req.usuario_id || null,
+//         });
+//         if (!movimiento?.id) throw new Error("No se pudo registrar el movimiento de stock");
+
+//         const inventarioInsertado = await insertarInventarioDesdeMovimientoTx(tx, {
+//           detalle_producto_id: detalleInsertado.id,
+//           stock_actual: u.stock_actual,
+//           stock_minimo: u.stock_minimo,
+//           precio_costo: u.precio_costo,
+//           ubicacion_fisica_id: u.ubicacion_fisica_id,
+//           proveedor_id: null,
+//           state_id: state.id,
+//         });
+//         // 5.1 Insertar detalle_producto_celda si hay celdas definidas
+    
+        
+//         if (Array.isArray(u.celdas) && u.celdas.length > 0) {
+//           const lista = u.celdas.map(celda => ({
+//             detalle_producto_id: detalleInsertado.id,
+//             inventario_id: inventarioInsertado.id,
+//             celda_id: celda.celda_id,
+//             contenedor_fisico_id: celda.contenedor_fisico_id,
+//             cantidad: celda.cantidad,
+//           }));
+//           await insertarDetalleProductoCeldaTx(tx, lista);
+//         }
+
+      
+      
+
+
+
+//         const preciosInsertados = [];
+//         if (u.precios?.length > 0) {
+//           for (const p of u.precios) {
+//             const precio = await insertarPrecioDesdeMovimientoTx(tx, {
+//               ...p,
+//               detalle_producto_id: detalleInsertado.id,
+//               ubicacion_fisica_id: u.ubicacion_fisica_id,
+//               fecha_inicio: p.fecha_inicio ? new Date(p.fecha_inicio) : null,
+//               fecha_fin: p.fecha_fin ? new Date(p.fecha_fin) : null,
+//             });
+//             preciosInsertados.push(precio);
+//           }
+//         }
+
+//         await insertarProductoUbicacionDesdeMovimientoTx(tx, {
+//           detalle_producto_id: detalleInsertado.id,
+//           inventario_id: inventarioInsertado.id,
+//           negocio_id: req.negocio_id || 1,
+//           ubicacion_fisica_id: u.ubicacion_fisica_id,
+//           precio_id: preciosInsertados[0]?.id || null,
+//           compartir: u.compartir === true,
+//         });
+//       }
+      
+//   // 5. Insertar etiquetas (alias normales y alias para presentaciones)
+  
+//   const mapaVirtual = {}; // idVirtual -> id real
+
+//   if (Array.isArray(presentaciones) && presentaciones.length > 0) {
+//     for (const pres of presentaciones) {
+//       const nueva = await insertarPresentacionServiceTx(tx, {
+//         detalle_producto_id: detalleInsertado.id,
+//         nombre: pres.nombre,
+//         cantidad: pres.cantidad,
+//         descripcion: pres.descripcion
+//       });
+//       if (pres.idVirtualPresentacion) {
+//         mapaVirtual[pres.idVirtualPresentacion] = nueva.id;
+//       }
+//     }
+//   }
+
+//   if (Array.isArray(etiquetas) && etiquetas.length > 0) {
+//     for (const etiqueta of etiquetas) {
+//       let presentacionId = etiqueta.presentacion_id || null;
+
+//       if (etiqueta.idVirtualPresentacion) {
+//         presentacionId = mapaVirtual[etiqueta.idVirtualPresentacion] || null;
+//       }
+
+//       await insertarAliasProductoTx(tx, [{
+//         detalle_producto_id: detalleInsertado.id,
+//         tipo: etiqueta.tipo,
+//         alias: etiqueta.alias,
+//         visible: etiqueta.visible ?? true,
+//         presentacion_id: presentacionId
+//       }]);
+//     }
+//   }
+
+//       // 6. Insertar multimedia
+//       if (Array.isArray(fotos) && fotos.length > 0) {
+//         await insertarMultimediaProductoTx(tx, fotos.map(f => ({
+//           detalle_producto_id: detalleInsertado.id,
+//           url_archivo: f
+//         })));
+//       }
+      
+ 
+
+      
+
+//       return detalleInsertado;
+//     });
+
+//     return res.status(201).json({ message: "Detalle producto creado", data: resultado });
+//   } catch (error) {
+//     console.error("Error en transacción de detalle_producto:", error);
+//     next(error);
+//   }
+// };
 
 
 
