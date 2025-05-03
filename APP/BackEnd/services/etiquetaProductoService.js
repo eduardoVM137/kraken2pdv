@@ -51,7 +51,8 @@ export const eliminarAliasProductoTx = async (tx, detalle_producto_id) => {
     .where(eq(schema.EtiquetaProducto.detalle_producto_id, detalle_producto_id));
 };
 
-export const insertarAliasProductoTx = async (tx, lista) => {
-  if (!Array.isArray(lista) || lista.length === 0) return;
-  await tx.insert(schema.EtiquetaProducto).values(lista);
+ 
+export const insertarAliasProductoTx = async (tx, data) => {
+  const [nueva] = await tx.insert(EtiquetaProducto).values(data).returning();
+  return nueva;
 };

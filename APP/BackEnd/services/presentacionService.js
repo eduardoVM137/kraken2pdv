@@ -38,8 +38,8 @@ export const eliminarPresentacionesServiceTx = async (tx, detalle_producto_id) =
   await tx.delete(schema.Presentacion)
     .where(eq(schema.Presentacion.detalle_producto_id, detalle_producto_id));
 };
-
+ 
 export const insertarPresentacionServiceTx = async (tx, data) => {
-  const [nueva] = await tx.insert(schema.Presentacion).values(data).returning();
+  const [nueva] = await tx.insert(Presentacion).values(data).returning();
   return nueva;
 };

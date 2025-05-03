@@ -30,8 +30,11 @@ export const eliminarMultimediaProductoTx = async (tx, detalle_producto_id) => {
   await tx.delete(schema.ProductoMultimedia)
     .where(eq(schema.ProductoMultimedia.detalle_producto_id, detalle_producto_id));
 };
+ 
 
-export const insertarMultimediaProductoTx = async (tx, lista) => {
-  if (!Array.isArray(lista) || lista.length === 0) return;
-  await tx.insert(schema.ProductoMultimedia).values(lista);
+
+// Insertar una presentación con transacción (uso en controladores complejos)
+export const insertarMultimediaProductoTx = async (tx, data) => {
+  const [nueva] = await tx.insert(ProductoMultimedia).values(data).returning();
+  return nueva;
 };
