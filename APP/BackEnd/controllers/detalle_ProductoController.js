@@ -24,7 +24,8 @@ import { insertarMultimediaProductoTx,buscarFotosPorDetalleProductoService } fro
 import { buscarAtributoPorIdService } from '../services/atributoService.js';
 import { buscarDetallesAtributoService } from '../services/detalleAtributoService.js';
 import { buscarAliasPorDetalleProductoService } from '../services/etiquetaProductoService.js';
-import { buscarPreciosPorDetalleProductoService } from '../services/precioService.js';
+import { buscarPreciosPorIdService } from '../services/precioService.js';
+import { buscarInventariosPorIdService } from '../services/inventarioService.js';
  
 import { buscarComponentesPorDetalleProductoService } from '../services/componenteService.js';
 import { buscarDetalleProductoCeldaPorDetalleProductoService } from '../services/detalle_producto_celdaService.js';
@@ -113,7 +114,7 @@ const procesarInventarios = async (tx, inventarios, detalle, state, req) => {
         stock_minimo: inv.stock_minimo,
         precio_costo: inv.precio_costo,
         ubicacion_fisica_id: inv.ubicacion_fisica_id,
-        proveedor_id: null,
+        proveedor_id: inv.proveedor_id,
         state_id: state.id,
       });
 
@@ -155,7 +156,8 @@ const procesarPrecios = async (tx, precios, detalle, mapaVirtual) => {
       const precio = await insertarPrecioDesdeMovimientoTx(tx, {
         ...p,
         detalle_producto_id: detalle.id,
-        presentacion_id,
+        presentacion_id, 
+        vigente: p.vigente ?? true, 
         fecha_inicio: p.fecha_inicio ? new Date(p.fecha_inicio) : null,
         fecha_fin: p.fecha_fin ? new Date(p.fecha_fin) : null,
       });
@@ -1605,12 +1607,10 @@ export const buscarDetalleProductoCompletoController = async (req, res, next) =>
     // Relaciones
     const atributo = detalle.atributo_id ? await buscarAtributoPorIdService(detalle.atributo_id) : null;
     const detalles_atributo = atributo ? await buscarDetallesAtributoService(atributo.id) : [];
-    const alias = await buscarAliasPorDetalleProductoService(id);
+    const etiqueta_producto = await buscarAliasPorDetalleProductoService(id);
     const fotos = await buscarFotosPorDetalleProductoService(id);
-    const ubicaciones = await buscarUbicacionesPorDetalleProductoService(id);
-    const precios = await buscarPreciosPorDetalleProductoService(id);
+    const producto_ubicaciones = await buscarUbicacionesPorDetalleProductoService(id); 
     const celdas = await buscarDetalleProductoCeldaPorDetalleProductoService(id);
-    // 🚧 Aún no tienes este service, pero ya está preparado para usar:
     const componentes = await buscarComponentesPorDetalleProductoService(id);
 
     const celdasPorInventario = {};
@@ -1620,6 +1620,13 @@ export const buscarDetalleProductoCompletoController = async (req, res, next) =>
       }
       celdasPorInventario[c.inventario_id].push(c);
     }
+    // Recoger ids únicos de las producto_ubicaciones (no vienen del usuario, sino de BD)
+    const precioIds = producto_ubicaciones.map(u => u.precio_id).filter(Boolean);
+    const inventarioIds = producto_ubicaciones.map(u => u.inventario_id).filter(Boolean);
+
+    // Traer solo los necesarios
+    const precios = await buscarPreciosPorIdService(precioIds);
+    const inventarios = await buscarInventariosPorIdService(inventarioIds);
 
     // Construcción final
     const resultado = {
@@ -1639,14 +1646,15 @@ export const buscarDetalleProductoCompletoController = async (req, res, next) =>
         nombre: atributo.nombre
       } : null,
       detalles_atributo,
-      alias,
+      etiqueta_producto,
       fotos,
-      ubicaciones: ubicaciones.map(u => ({
+      producto_ubicaciones: producto_ubicaciones.map(u => ({
         ...u,
-        precios: precios.filter(p => p.ubicacion_fisica_id === u.ubicacion_fisica_id),
-        celdas: celdas
+        precio: precios.find(p => p.id === u.precio_id) || null,
+        inventario: inventarios.find(i => i.id === u.inventario_id) || null,
+        celdas: celdasPorInventario[u.inventario_id] || []
       })),
-       componentes // <- descomenta cuando tengas el service
+      componentes  
     };
 
     return res.status(200).json({ data: resultado });
@@ -1658,143 +1666,143 @@ export const buscarDetalleProductoCompletoController = async (req, res, next) =>
 
 
 
-{
-  "producto_id": 1,
-  "medida": 1.0,
-  "unidad_medida": "lt",
-  "marca_id": "PEPSI",
-  "descripcion": "Bebida sabor cola 1L retornable",
-  "nombre_calculado": "Pepsi 1L retornable",
-  "activo": true,
+// {
+//   "producto_id": 1,
+//   "medida": 1.0,
+//   "unidad_medida": "lt",
+//   "marca_id": "PEPSI",
+//   "descripcion": "Bebida sabor cola 1L retornable",
+//   "nombre_calculado": "Pepsi 1L retornable",
+//   "activo": true,
 
-  "atributo": {
-    "nombre": "Envase"
-  },
-  "detalles_atributo": [
-    { "valor": "Vidrio" },
-    { "valor": "Plástico" }
-  ],
+//   "atributo": {
+//     "nombre": "Envase"
+//   },
+//   "detalles_atributo": [
+//     { "valor": "Vidrio" },
+//     { "valor": "Plástico" }
+//   ],
 
-  "componentes": [
-    { "detalle_producto_padre_id": 54, "cantidad": 2 },
-    { "detalle_producto_padre_id": 56, "cantidad": 3 }
-  ],
+//   "componentes": [
+//     { "detalle_producto_padre_id": 54, "cantidad": 2 },
+//     { "detalle_producto_padre_id": 56, "cantidad": 3 }
+//   ],
 
-  "presentaciones": [
-    {
-      "idVirtualPresentacion": "presA",
-      "nombre": "Six Pack",
-      "cantidad": 6,
-      "descripcion": "Presentación de seis botellas"
-    },
-    {
-      "idVirtualPresentacion": "presB",
-      "nombre": "Caja 12",
-      "cantidad": 12,
-      "descripcion": "Caja con 12 botellas"
-    }
-  ],
+//   "presentaciones": [
+//     {
+//       "idVirtualPresentacion": "presA",
+//       "nombre": "Six Pack",
+//       "cantidad": 6,
+//       "descripcion": "Presentación de seis botellas"
+//     },
+//     {
+//       "idVirtualPresentacion": "presB",
+//       "nombre": "Caja 12",
+//       "cantidad": 12,
+//       "descripcion": "Caja con 12 botellas"
+//     }
+//   ],
 
-  "etiquetas": [
-    {
-      "tipo": "ean",
-      "alias": "7501234567890",
-      "visible": true
-    },
-    {
-      "tipo": "ean",
-      "alias": "7501234567891",
-      "visible": false,
-      "idVirtualPresentacion": "presA"
-    }
-  ],
+//   "etiquetas": [
+//     {
+//       "tipo": "ean",
+//       "alias": "7501234567890",
+//       "visible": true
+//     },
+//     {
+//       "tipo": "ean",
+//       "alias": "7501234567891",
+//       "visible": false,
+//       "idVirtualPresentacion": "presA"
+//     }
+//   ],
 
-  "fotos": [
-    "https://miapp.com/img/pepsi-1.jpg",
-    "https://miapp.com/img/pepsi-1-sec.jpg"
-  ],
+//   "fotos": [
+//     "https://miapp.com/img/pepsi-1.jpg",
+//     "https://miapp.com/img/pepsi-1-sec.jpg"
+//   ],
 
-  "inventarios": [
-    {
-      "idVirtual": "inv1",
-      "stock_actual": 120,
-      "stock_minimo": 20,
-      "precio_costo": 9.5,
-      "ubicacion_fisica_id": 1,
-      "celdas": [
-        {
-          "celda_id": 1,
-          "contenedor_fisico_id": 1,
-          "cantidad": 6
-        },
-        {
-          "celda_id": 1,
-          "contenedor_fisico_id": 1,
-          "cantidad": 60
-        }
-      ]
-    },
-    {
-      "idVirtual": "inv2",
-      "stock_actual": 80,
-      "stock_minimo": 10,
-      "precio_costo": 8.9,
-      "ubicacion_fisica_id": 2
-    }
-  ],
+//   "inventarios": [
+//     {
+//       "idVirtual": "inv1",
+//       "stock_actual": 120,
+//       "stock_minimo": 20,
+//       "precio_costo": 9.5,
+//       "ubicacion_fisica_id": 1,
+//       "celdas": [
+//         {
+//           "celda_id": 1,
+//           "contenedor_fisico_id": 1,
+//           "cantidad": 6
+//         },
+//         {
+//           "celda_id": 1,
+//           "contenedor_fisico_id": 1,
+//           "cantidad": 60
+//         }
+//       ]
+//     },
+//     {
+//       "idVirtual": "inv2",
+//       "stock_actual": 80,
+//       "stock_minimo": 10,
+//       "precio_costo": 8.9,
+//       "ubicacion_fisica_id": 2
+//     }
+//   ],
 
-  "precios": [
-    {
-      "idVirtual": "precio1",
-      "precio_venta": 15.5,
-      "tipo_cliente_id": 1,
-      "cantidad_minima": 1,
-      "fecha_inicio": "2024-01-01"
-    },
-    {
-      "idVirtual": "precio2",
-      "precio_venta": 13.0,
-      "tipo_cliente_id": 2,
-      "cantidad_minima": 10,
-      "fecha_inicio": "2024-01-01",
-      "fecha_fin": "2025-01-01",
-      "idVirtualPresentacion": "presA"
-    },
-    {
-      "idVirtual": "precio3",
-      "precio_venta": 11.5,
-      "tipo_cliente_id": 3,
-      "cantidad_minima": 20,
-      "precio_base": 10.5,
-      "prioridad": 1,
-      "descripcion": "Promoción por volumen"
-    }
-  ],
+//   "precios": [
+//     {
+//       "idVirtual": "precio1",
+//       "precio_venta": 15.5,
+//       "tipo_cliente_id": 1,
+//       "cantidad_minima": 1,
+//       "fecha_inicio": "2024-01-01"
+//     },
+//     {
+//       "idVirtual": "precio2",
+//       "precio_venta": 13.0,
+//       "tipo_cliente_id": 2,
+//       "cantidad_minima": 10,
+//       "fecha_inicio": "2024-01-01",
+//       "fecha_fin": "2025-01-01",
+//       "idVirtualPresentacion": "presA"
+//     },
+//     {
+//       "idVirtual": "precio3",
+//       "precio_venta": 11.5,
+//       "tipo_cliente_id": 3,
+//       "cantidad_minima": 20,
+//       "precio_base": 10.5,
+//       "prioridad": 1,
+//       "descripcion": "Promoción por volumen"
+//     }
+//   ],
 
-  "producto_ubicaciones": [
-    {
-      "ubicacion_fisica_id": 1,
-      "negocio_id": 10,
-      "idVirtualInventario": "inv1",
-      "idVirtualPrecio": "precio1",
-      "compartir": true
-    },
-    {
-      "ubicacion_fisica_id": 5,
-      "negocio_id": 10,
-      "idVirtualInventario": "inv2",
-      "idVirtualPrecio": "precio2",
-      "compartir": false
-    },
-    {
-      "ubicacion_fisica_id": 3,
-      "negocio_id": 11,
-      "idVirtualPrecio": "precio3"
-    },
-    {
-      "ubicacion_fisica_id": 4,
-      "negocio_id": 12
-    }
-  ]
-}
+//   "producto_ubicaciones": [
+//     {
+//       "ubicacion_fisica_id": 1,
+//       "negocio_id": 10,
+//       "idVirtualInventario": "inv1",
+//       "idVirtualPrecio": "precio1",
+//       "compartir": true
+//     },
+//     {
+//       "ubicacion_fisica_id": 5,
+//       "negocio_id": 10,
+//       "idVirtualInventario": "inv2",
+//       "idVirtualPrecio": "precio2",
+//       "compartir": false
+//     },
+//     {
+//       "ubicacion_fisica_id": 3,
+//       "negocio_id": 11,
+//       "idVirtualPrecio": "precio3"
+//     },
+//     {
+//       "ubicacion_fisica_id": 4,
+//       "negocio_id": 12
+//     }
+//   ]
+// }
 

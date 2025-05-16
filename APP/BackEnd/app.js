@@ -38,9 +38,14 @@ import modulo_empresaRoutes from './Routes/modulo_empresaRoutes.js';
 import configuracion_extra_jsonRoutes from './Routes/configuracion_extra_jsonRoutes.js';
 import contenedor_figuraRoutes from './Routes/contenedor_figuraRoutes.js';
 import errorHandler from './middlewares/errorHandler.js';
+ 
+import cors from 'cors';
 
 const app = express();
 app.use(express.json());
+app.use(cors());
+
+
 
 // Rutas
 app.use('/api/producto', productoRoutes);

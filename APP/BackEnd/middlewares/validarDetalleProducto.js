@@ -138,6 +138,7 @@ export const detalleProductoSchema = Joi.object({
         stock_minimo: Joi.number().positive().optional(),
         precio_costo: Joi.number().precision(2).required(),
         ubicacion_fisica_id: Joi.number().integer().required(),
+        proveedor_id: Joi.number().integer().optional().allow(null),
         celdas: Joi.array().items(celdaSchema).optional()
       })
     ).optional(),
