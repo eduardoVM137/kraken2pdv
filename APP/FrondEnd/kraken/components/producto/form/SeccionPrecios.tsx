@@ -6,7 +6,6 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -77,12 +76,7 @@ export const SeccionPrecios = ({
 
   return (
     <div className="space-y-4 text-sm">
-      <Badge
-        variant="outline"
-        className="bg-emerald-50 text-emerald-700 border-emerald-300 flex items-center gap-1 px-2 py-1"
-      >
-        <DollarSign className="h-4 w-4" /> Precio
-      </Badge>
+  
 
       {/* ------- básicos ------- */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

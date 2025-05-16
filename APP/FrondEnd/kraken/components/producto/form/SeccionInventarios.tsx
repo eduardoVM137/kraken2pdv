@@ -1,15 +1,17 @@
 // frontend/components/producto/form/SeccionInventarios.tsx
 "use client";
 
-import { useFieldArray, useFormContext } from "react-hook-form";
+import React, { useState } from "react";
+import { useEffect } from "react";
+import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Input }  from "@/components/ui/input";
-import { Label }  from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   PackageSearch,
   AlertTriangle,
@@ -17,11 +19,12 @@ import {
   Truck,
   LayoutGrid,
   Hash,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ProductoFormData } from "./FormularioProducto";
+import { ComboboxSelect } from "@/components/ui/ComboboxSelect";
 
-/* ───────────────────── helpers de UI ───────────────────── */
 const Field = ({
   label,
   icon,
@@ -31,18 +34,17 @@ const Field = ({
   icon: React.ReactElement;
   children: React.ReactNode;
 }) => (
-  <div className="space-y-1">
-    <Label className="text-xs">{label}</Label>
-    <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-        {icon}
-      </span>
-      {children}
+  <div className="space-y-1 w-full">
+    <Label className="text-xs text-muted-foreground font-medium">{label}</Label>
+    <div className="relative w-full">
+      <div className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+        {React.cloneElement(icon, { className: "h-4 w-4" })}
+      </div>
+      <div className="pl-7 truncate">{children}</div>
     </div>
   </div>
 );
 
-/* ───────────────────── componente principal ───────────────────── */
 export const SeccionInventarios = ({
   inv,
   idVirtual,
@@ -55,165 +57,171 @@ export const SeccionInventarios = ({
   setValue: any;
 }) => {
   const { control } = useFormContext<ProductoFormData>();
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [contenedores, setContenedores] = useState<any[]>([]);
+  const [celdas, setCeldas] = useState<any[]>([]);
+  const [editIdx, setEditIdx] = useState<number | null>(null);
+  const [newCelda, setNewCelda] = useState(false);
+  const [newContId, setNewContId] = useState<number | null>(null);
+  const [newCelId, setNewCelId] = useState<number | null>(null);
+  const [newQty, setNewQty] = useState<number | null>(null);
 
-  /* ========  celdas internas  ======== */
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [resProv, resCont, resCel] = await Promise.all([
+          fetch("http://localhost:3001/api/proveedor"),
+          fetch("http://localhost:3001/api/contenedor-fisico"),
+          fetch("http://localhost:3001/api/celda"),
+        ]);
+        const jsonProv = await resProv.json();
+        const dataCont = await resCont.json();
+        const dataCel = await resCel.json();
+
+        setProveedores(Array.isArray(jsonProv) ? jsonProv : jsonProv.data ?? []);
+        setContenedores(Array.isArray(dataCont) ? dataCont : dataCont.data ?? []);
+        setCeldas(Array.isArray(dataCel) ? dataCel : dataCel.data ?? []);
+      } catch (error) {
+        console.error("Error cargando datos:", error);
+      }
+    };
+
+    fetchData();
+  }, []);
+
   const {
     fields: celdaFields,
     append: appendCelda,
     remove: removeCelda,
+    update: updateCelda,
   } = useFieldArray({
     control,
-    name: `inventarios.${inventarios.findIndex(
-      (i: any) => i.idVirtual === idVirtual
-    )}.celdas`,
+    name: `inventarios.${inventarios.findIndex((i: any) => i.idVirtual === idVirtual)}.celdas`,
   });
 
-  /* envía al store RHF (sin controlar el input) */
-  const commit = (field: string, val: any) =>
-    setValue(
-      "inventarios",
-      inventarios.map((i: any) =>
-        i.idVirtual === idVirtual ? { ...i, [field]: val } : i
-      )
-    );
+  const values = useWatch({ control, name: `inventarios.${inventarios.findIndex((i) => i.idVirtual === idVirtual)}.celdas` });
 
-  const blurNum =
-    (field: string) => (e: React.FocusEvent<HTMLInputElement>) =>
-      commit(
-        field,
-        e.target.value === "" ? undefined : Number(e.target.value)
-      );
-
-  const blurCelda =
-    (index: number, field: string) =>
-    (e: React.FocusEvent<HTMLInputElement>) =>
-      setValue(
-        `inventarios.${inventarios.findIndex(
-          (i: any) => i.idVirtual === idVirtual
-        )}.celdas.${index}.${field}`,
-        e.target.value === "" ? undefined : Number(e.target.value)
-      );
+  const handleAddNewCelda = () => {
+    if (newContId !== null && newCelId !== null && newQty !== null) {
+      appendCelda({ contenedor_fisico_id: newContId, celda_id: newCelId, cantidad: newQty });
+      setNewCelda(false);
+      setNewContId(null);
+      setNewCelId(null);
+      setNewQty(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
-      {/* título */}
-      <div className="flex items-center gap-2 mb-1">
-        <PackageSearch className="h-4 w-4 text-muted-foreground" />
-        <p className="text-sm font-semibold">Inventario</p>
-      </div>
-
-      {/* básicos + proveedor (obligatorio) */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <Field label="Stock actual" icon={<PackageSearch className="h-4 w-4" />}>
-          <Input
-            type="text"
-            inputMode="decimal"
-            className="pl-10"
-            defaultValue={inv?.stock_actual ?? ""}
-            onBlur={blurNum("stock_actual")}
-          />
-        </Field>
-
-        <Field label="Stock mínimo" icon={<AlertTriangle className="h-4 w-4" />}>
-          <Input
-            type="text"
-            inputMode="decimal"
-            className="pl-10"
-            defaultValue={inv?.stock_minimo ?? ""}
-            onBlur={blurNum("stock_minimo")}
-          />
-        </Field>
-
-        <Field label="Precio costo" icon={<DollarSign className="h-4 w-4" />}>
-          <Input
-            type="text"
-            inputMode="decimal"
-            className="pl-10"
-            defaultValue={inv?.precio_costo ?? ""}
-            onBlur={blurNum("precio_costo")}
-          />
-        </Field>
-
-        <Field label="Proveedor ID" icon={<Truck className="h-4 w-4" />}>
-          <Input
-            type="text"
-            inputMode="numeric"
-            className="pl-10"
-            defaultValue={inv?.proveedor_id ?? ""}
-            onBlur={blurNum("proveedor_id")}
-            required
-          />
-        </Field>
-      </div>
-
-      {/* --- celdas --- */}
       <Accordion type="single" collapsible>
         <AccordionItem value="cel">
           <AccordionTrigger className="text-xs hover:no-underline">
             Celdas (contenedor / celda / cantidad)
           </AccordionTrigger>
           <AccordionContent className="pt-3 space-y-3">
-            {celdaFields.map((celda, idx) => (
-              <div
-                key={celda.id}
-                className="grid grid-cols-3 gap-2 items-end border p-2 rounded-md"
-              >
-                <Field
-                  label="Contenedor ID"
-                  icon={<LayoutGrid className="h-4 w-4" />}
-                >
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    className="pl-10"
-                    defaultValue={celda.contenedor_fisico_id ?? ""}
-                    onBlur={blurCelda(idx, "contenedor_fisico_id")}
+            <div className="flex flex-wrap gap-2">
+              {celdaFields.map((celda, idx) => {
+                const cont = contenedores.find((c) => c.id === values?.[idx]?.contenedor_fisico_id);
+                const cel = celdas.find((c) => c.id === values?.[idx]?.celda_id);
+
+                return editIdx === idx ? (
+                  <div key={celda.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl bg-white p-4 border rounded-xl shadow">
+                    <Field label="Contenedor físico" icon={<LayoutGrid />}>
+                      <ComboboxSelect
+                        options={contenedores.map((c) => ({ label: c.nombre ?? `Cont ${c.id}`, value: c.id.toString() }))}
+                        selected={values?.[idx]?.contenedor_fisico_id?.toString() ?? ""}
+                        onChange={(val) => updateCelda(idx, { ...values[idx], contenedor_fisico_id: Number(val) })}
+                      />
+                    </Field>
+                    <Field label="Celda interna" icon={<Hash />}>
+                      <ComboboxSelect
+                        options={celdas.map((c) => ({ label: c.nombre ?? `Celda ${c.id}`, value: c.id.toString() }))}
+                        selected={values?.[idx]?.celda_id?.toString() ?? ""}
+                        onChange={(val) => updateCelda(idx, { ...values[idx], celda_id: Number(val) })}
+                      />
+                    </Field>
+                    <Field label="Cantidad almacenada" icon={<PackageSearch />}>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        className="pl-7"
+                        value={values?.[idx]?.cantidad ?? ""}
+                        onChange={(e) => updateCelda(idx, { ...values[idx], cantidad: Number(e.target.value) })}
+                      />
+                    </Field>
+                    <div className="col-span-full flex justify-end gap-2">
+                      <Button type="button" variant="secondary" onClick={() => setEditIdx(null)}>Cancelar</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    key={celda.id}
+                    onClick={() => setEditIdx(idx)}
+                    className="flex items-center gap-2 bg-blue-50 text-sm rounded-lg px-4 py-2 border border-blue-200 max-w-full shadow-sm hover:bg-blue-100 cursor-pointer"
+                  >
+                    <LayoutGrid className="w-4 h-4 text-blue-500" />
+                    <div className="flex gap-2 items-center flex-wrap">
+                      <span className="bg-blue-100 rounded px-2 py-0.5 border border-blue-200 text-xs font-medium text-blue-700">
+                        {cont?.nombre || `Cont ${values?.[idx]?.contenedor_fisico_id}`}
+                      </span>
+                      <span className="bg-blue-100 rounded px-2 py-0.5 border border-blue-200 text-xs font-medium text-blue-700">
+                        {cel?.nombre || `Celda ${values?.[idx]?.celda_id}`}
+                      </span>
+                      <span className="bg-blue-100 rounded px-2 py-0.5 border border-blue-200 text-xs font-medium text-blue-700">
+                        {values?.[idx]?.cantidad ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); removeCelda(idx); }}><X className="w-3.5 h-3.5 text-red-600" /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {newCelda && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl bg-white p-4 border rounded-xl shadow">
+                <Field label="Contenedor físico" icon={<LayoutGrid />}>
+                  <ComboboxSelect
+                    options={contenedores.map((c) => ({ label: c.nombre ?? `Cont ${c.id}`, value: c.id.toString() }))}
+                    selected={newContId?.toString() ?? ""}
+                    onChange={(val) => setNewContId(Number(val))}
                   />
                 </Field>
-                <Field label="Celda ID" icon={<Hash className="h-4 w-4" />}>
-                  <Input
-                    type="text"
-                    inputMode="numeric"
-                    className="pl-10"
-                    defaultValue={celda.celda_id ?? ""}
-                    onBlur={blurCelda(idx, "celda_id")}
+                <Field label="Celda interna" icon={<Hash />}>
+                  <ComboboxSelect
+                    options={celdas.map((c) => ({ label: c.nombre ?? `Celda ${c.id}`, value: c.id.toString() }))}
+                    selected={newCelId?.toString() ?? ""}
+                    onChange={(val) => setNewCelId(Number(val))}
                   />
                 </Field>
-                <Field label="Cantidad" icon={<PackageSearch className="h-4 w-4" />}>
+                <Field label="Cantidad almacenada" icon={<PackageSearch />}>
                   <Input
-                    type="text"
+                    type="number"
                     inputMode="numeric"
-                    className="pl-10"
-                    defaultValue={celda.cantidad ?? ""}
-                    onBlur={blurCelda(idx, "cantidad")}
+                    className="pl-7"
+                    value={newQty ?? ""}
+                    onChange={(e) => setNewQty(Number(e.target.value))}
                   />
                 </Field>
+                <div className="col-span-full flex justify-end gap-2">
+                  <Button type="button" variant="secondary" onClick={() => setNewCelda(false)}>Cancelar</Button>
+                  <Button type="button" onClick={handleAddNewCelda}>Guardar</Button>
+                </div>
+              </div>
+            )}
+            {!newCelda && (
+              <div className="flex justify-start pt-2">
                 <Button
                   type="button"
+                  variant="outline"
                   size="sm"
-                  variant="destructive"
-                  className="col-span-3"
-                  onClick={() => removeCelda(idx)}
+                  onClick={() => setNewCelda(true)}
+                  disabled={contenedores.length === 0 || celdas.length === 0}
                 >
-                  Eliminar celda
+                  + Agregar celda
                 </Button>
               </div>
-            ))}
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                appendCelda({
-                  contenedor_fisico_id: undefined,
-                  celda_id: undefined,
-                  cantidad: undefined,
-                })
-              }
-            >
-              + Agregar celda
-            </Button>
+            )}
           </AccordionContent>
         </AccordionItem>
       </Accordion>

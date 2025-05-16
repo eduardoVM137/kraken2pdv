@@ -1,131 +1,255 @@
-// frontend/components/producto/form/SeccionPresentaciones.tsx
+// frontend/components/producto/form/SeccionInventarios.tsx
 "use client";
 
-import { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
 import {
-  AlertDialog, AlertDialogTrigger, AlertDialogContent,
-  AlertDialogHeader, AlertDialogTitle, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
-} from "@/components/ui/alert-dialog";
-import { Card, CardContent } from "@/components/ui/card";
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  PackageSearch,
+  AlertTriangle,
+  DollarSign,
+  Truck,
+  LayoutGrid,
+  Hash,
+  X,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Package, Plus, X, Check } from "lucide-react";
 import { ProductoFormData } from "./FormularioProducto";
+import { ComboboxSelect } from "@/components/ui/ComboboxSelect";
 
-const uid = (p: string) => `${p}_${crypto.randomUUID().slice(0, 8)}`;
+const Field = ({
+  label,
+  icon,
+  children,
+}: {
+  label: string;
+  icon: React.ReactElement;
+  children: React.ReactNode;
+}) => (
+  <div className="space-y-1 w-full">
+    <Label className="text-xs text-muted-foreground font-medium">{label}</Label>
+    <div className="relative w-full">
+      <div className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none">
+        {React.cloneElement(icon, { className: "h-4 w-4" })}
+      </div>
+      <div className="pl-7 truncate">{children}</div>
+    </div>
+  </div>
+);
 
-export const SeccionPresentaciones = () => {
-  const { control, register, setValue } = useFormContext<ProductoFormData>();
-  const { fields, append, remove } = useFieldArray({ control, name: "presentaciones" });
-  const pres = useWatch({ control, name: "presentaciones" }) as ProductoFormData["presentaciones"];
+export const SeccionInventarios = ({
+  inv,
+  idVirtual,
+  inventarios,
+  setValue,
+}: {
+  inv: any;
+  idVirtual: string;
+  inventarios: any[];
+  setValue: any;
+}) => {
+  const { control } = useFormContext<ProductoFormData>();
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [contenedores, setContenedores] = useState<any[]>([]);
+  const [celdas, setCeldas] = useState<any[]>([]);
+  const [editIdx, setEditIdx] = useState<number | null>(null);
+  const draftQtyRef = useRef<HTMLInputElement | null>(null);
+  const draftContRef = useRef<HTMLSelectElement | null>(null);
+  const draftCelRef = useRef<HTMLSelectElement | null>(null);
 
-  /* alta rápida */
-  const [newName, setNewName] = useState("");
-  const [newQty,  setNewQty]  = useState("");
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [resProv, resCont, resCel] = await Promise.all([
+          fetch("http://localhost:3001/api/proveedor"),
+          fetch("http://localhost:3001/api/contenedor-fisico"),
+          fetch("http://localhost:3001/api/celda"),
+        ]);
+        const jsonProv = await resProv.json();
+        const dataCont = await resCont.json();
+        const dataCel = await resCel.json();
 
-  /* edición */
-  const [editIdx, setEditIdx]     = useState<number|null>(null);
-  const [draftName, setDraftName] = useState("");
-  const [draftQty,  setDraftQty]  = useState("");
+        setProveedores(Array.isArray(jsonProv) ? jsonProv : jsonProv.data ?? []);
+        setContenedores(Array.isArray(dataCont) ? dataCont : dataCont.data ?? []);
+        setCeldas(Array.isArray(dataCel) ? dataCel : dataCel.data ?? []);
+      } catch (error) {
+        console.error("Error cargando datos:", error);
+      }
+    };
 
-  /* confirm */
-  const [confirmIdx, setConfirmIdx] = useState<number|null>(null);
+    fetchData();
+  }, []);
 
-  const stopEnter = (e:React.KeyboardEvent)=> e.key==="Enter" && e.preventDefault();
+  const {
+    fields: celdaFields,
+    append: appendCelda,
+    remove: removeCelda,
+    update: updateCelda,
+  } = useFieldArray({
+    control,
+    name: `inventarios.${inventarios.findIndex((i: any) => i.idVirtual === idVirtual)}.celdas`,
+  });
 
-  const startEdit = (i:number)=>{
-    setEditIdx(i);
-    setDraftName(pres?.[i]?.nombre ?? "");
-    setDraftQty( pres?.[i]?.cantidad!==undefined ? String(pres[i].cantidad):"");
-  };
-  const saveEdit = ()=>{
-    if(editIdx===null) return;
-    setValue(`presentaciones.${editIdx}.nombre`, draftName.trim()||"—");
-    setValue(`presentaciones.${editIdx}.cantidad`, draftQty?Number(draftQty):undefined);
+  const values = useWatch({ control, name: `inventarios.${inventarios.findIndex((i) => i.idVirtual === idVirtual)}.celdas` });
+
+  const saveEdit = () => {
+    if (editIdx === null || !draftQtyRef.current || !draftContRef.current || !draftCelRef.current) return;
+    updateCelda(editIdx, {
+      contenedor_fisico_id: Number(draftContRef.current.value),
+      celda_id: Number(draftCelRef.current.value),
+      cantidad: draftQtyRef.current.value ? Number(draftQtyRef.current.value) : 0,
+    });
     setEditIdx(null);
   };
-  const add = ()=>{
-    if(!newName.trim()) return;
-    append({ idVirtualPresentacion:uid("pres"), nombre:newName.trim(), cantidad:newQty?Number(newQty):undefined });
-    setNewName(""); setNewQty("");
-  };
+
+  const commitField = (field: string) => (e: React.FocusEvent<HTMLInputElement>) =>
+    setValue(
+      "inventarios",
+      inventarios.map((i) =>
+        i.idVirtual === idVirtual ? { ...i, [field]: e.target.value === "" ? undefined : Number(e.target.value) } : i
+      )
+    );
+
+  const commitSelect = (field: string, val: string) =>
+    setValue(
+      "inventarios",
+      inventarios.map((i) =>
+        i.idVirtual === idVirtual ? { ...i, [field]: Number(val) } : i
+      )
+    );
 
   return (
-    <section className="space-y-4">
-      {/* —──────── Chips —──────── */}
-      <div className="flex flex-wrap gap-2">
-        {fields.map((f,idx)=>
-          editIdx===idx ? (
-            /* tarjeta de edición */
-            <Card key={f.id} className="w-full max-w-md border-amber-400/40">
-              <CardContent className="p-4 space-y-4">
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="text-sm font-medium">Nombre</label>
-                    <Input autoFocus value={draftName} onChange={e=>setDraftName(e.target.value)} onKeyDown={stopEnter}/>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Field label="Stock actual (Unidades)" icon={<PackageSearch />}>
+          <Input
+            type="number"
+            inputMode="decimal"
+            className="pl-7 h-10 text-sm"
+            defaultValue={inv?.stock_actual ?? ""}
+            onBlur={commitField("stock_actual")}
+          />
+        </Field>
+
+        <Field label="Stock mínimo (Alerta)" icon={<AlertTriangle />}>
+          <Input
+            type="number"
+            inputMode="decimal"
+            className="pl-7 h-10 text-sm"
+            defaultValue={inv?.stock_minimo ?? ""}
+            onBlur={commitField("stock_minimo")}
+          />
+        </Field>
+
+        <Field label="Precio costo (MXN)" icon={<DollarSign />}>
+          <Input
+            type="number"
+            inputMode="decimal"
+            className="pl-7 h-10 text-sm"
+            defaultValue={inv?.precio_costo ?? ""}
+            onBlur={commitField("precio_costo")}
+          />
+        </Field>
+
+        <Field label="Proveedor asociado" icon={<Truck />}>
+          <div className="h-10">
+            <ComboboxSelect
+              options={proveedores.map((p) => ({ label: p.nombre, value: p.id.toString() }))}
+              selected={inv?.proveedor_id?.toString() ?? ""}
+              onChange={(val) => commitSelect("proveedor_id", val)}
+            />
+          </div>
+        </Field>
+      </div>
+
+      <Accordion type="single" collapsible>
+        <AccordionItem value="cel">
+          <AccordionTrigger className="text-xs hover:no-underline">
+            Celdas (contenedor / celda / cantidad)
+          </AccordionTrigger>
+          <AccordionContent className="pt-3 space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {celdaFields.map((celda, idx) => {
+                const cont = contenedores.find((c) => c.id === values?.[idx]?.contenedor_fisico_id);
+                const cel = celdas.find((c) => c.id === values?.[idx]?.celda_id);
+
+                return editIdx === idx ? (
+                  <div key={celda.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full max-w-2xl bg-white p-4 border rounded-xl shadow">
+                    <Field label="Contenedor físico" icon={<LayoutGrid />}>
+                      <select ref={draftContRef} className="w-full border rounded px-2 py-1">
+                        {contenedores.map((c) => (
+                          <option key={c.id} value={c.id} selected={c.id === cont?.id}>{c.nombre}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Celda interna" icon={<Hash />}>
+                      <select ref={draftCelRef} className="w-full border rounded px-2 py-1">
+                        {celdas.map((c) => (
+                          <option key={c.id} value={c.id} selected={c.id === cel?.id}>{c.nombre}</option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Cantidad almacenada" icon={<PackageSearch />}>
+                      <Input
+                        type="number"
+                        inputMode="numeric"
+                        className="pl-7"
+                        ref={draftQtyRef}
+                        defaultValue={values?.[idx]?.cantidad ?? ""}
+                      />
+                    </Field>
+                    <div className="col-span-full flex justify-end gap-2">
+                      <Button type="button" variant="secondary" onClick={() => setEditIdx(null)}>Cancelar</Button>
+                      <Button type="button" onClick={saveEdit}><Check className="w-4 h-4 mr-1" />Guardar</Button>
+                    </div>
                   </div>
-                  <div className="w-24">
-                    <label className="text-sm font-medium">Cant.</label>
-                    <Input type="number" min="1" value={draftQty} onChange={e=>setDraftQty(e.target.value)} onKeyDown={stopEnter}/>
+                ) : (
+                  <div
+                    key={celda.id}
+                    onClick={() => setEditIdx(idx)}
+                    className="flex items-center gap-2 bg-blue-50 text-sm rounded-lg px-4 py-2 border border-blue-200 max-w-full shadow-sm hover:bg-blue-100 cursor-pointer"
+                  >
+                    <LayoutGrid className="w-4 h-4 text-blue-500" />
+                    <div className="flex gap-2 items-center flex-wrap">
+                      <span className="bg-blue-100 rounded px-2 py-0.5 border border-blue-200 text-xs font-medium text-blue-700">
+                        {cont?.nombre || `Cont ${values?.[idx]?.contenedor_fisico_id}`}
+                      </span>
+                      <span className="bg-blue-100 rounded px-2 py-0.5 border border-blue-200 text-xs font-medium text-blue-700">
+                        {cel?.nombre || `Celda ${values?.[idx]?.celda_id}`}
+                      </span>
+                      <span className="bg-blue-100 rounded px-2 py-0.5 border border-blue-200 text-xs font-medium text-blue-700">
+                        {values?.[idx]?.cantidad ?? 0}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); removeCelda(idx); }}><X className="w-3.5 h-3.5 text-red-600" /></button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <Button type="button" className="flex-1" onClick={saveEdit}><Check className="h-4 w-4 mr-1"/>Guardar</Button>
-                  <Button type="button" variant="secondary" className="flex-1" onClick={()=>setEditIdx(null)}><X className="h-4 w-4 mr-1"/>Cancelar</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            /* chip píldora */
-            <div key={f.id}
-              className="inline-flex items-center gap-1 px-3 py-1 m-1
-            rounded-full bg-amber-100 ring-1 ring-amber-300
-            cursor-pointer hover:bg-amber-200 transition
-            max-w-40 truncate"         
- 
-
-              onClick={()=> confirmIdx===null && startEdit(idx)}>
-              <Package className="h-4 w-4 text-amber-600 flex-none"/>
-              <span className="truncate text-sm">{pres?.[idx]?.nombre}{pres?.[idx]?.cantidad&&` ${pres[idx].cantidad}`}</span>
-
-              {/* eliminar con confirm */}
-              <AlertDialog open={confirmIdx===idx} onOpenChange={o=>setConfirmIdx(o?idx:null)}>
-                <AlertDialogTrigger asChild>
-                  <button className="ml-1 shrink-0" onClick={e=>{e.stopPropagation(); setConfirmIdx(idx);}}>
-                    <X className="h-3.5 w-3.5 text-destructive"/>
-                  </button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Eliminar presentación?</AlertDialogTitle>
-                    <AlertDialogDescription>No podrás deshacer esta acción.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction className="bg-destructive hover:bg-destructive/80" onClick={()=>remove(idx)}>Eliminar</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-
-              <input type="hidden" {...register(`presentaciones.${idx}.idVirtualPresentacion`)} value={f.idVirtualPresentacion}/>
+                );
+              })}
             </div>
-          )
-        )}
-      </div>
-
-      {/* —──────── Alta rápida —──────── */}
-      <div className="flex items-center gap-1 max-w-md">
-        <Input placeholder="Nombre" value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={stopEnter}
-               className="flex-1 rounded-r-none"/>
-        <Input placeholder="#" type="number" min="1" value={newQty} onChange={e=>setNewQty(e.target.value)}
-               onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault(); add();}}}
-               className="w-24 rounded-none text-center"/>
-        <Button type="button" size="icon" variant="secondary" onClick={add} className="rounded-l-none active:scale-95" aria-label="Agregar">
-          <Plus className="h-5 w-5"/>
-        </Button>
-      </div>
-    </section>
+            <div className="flex justify-start pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setEditIdx(celdaFields.length)}
+                disabled={contenedores.length === 0 || celdas.length === 0}
+              >
+                + Agregar celda
+              </Button>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+    </div>
   );
 };

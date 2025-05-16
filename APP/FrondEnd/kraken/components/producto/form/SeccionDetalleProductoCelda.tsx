@@ -1,55 +1,52 @@
-// frontend/components/producto/form/SeccionDetalleProductoCelda.tsx
 "use client";
 
-import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
+import { useEffect, useState } from "react";
+import { useFieldArray, useFormContext } from "react-hook-form";
+import {
+  Select, SelectTrigger, SelectValue,
+  SelectContent, SelectItem,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import {
-  PackageSearch,
-  LayoutGrid,
-  Hash,
-  Package,
-} from "lucide-react";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+import { PackageSearch, LayoutGrid, Hash } from "lucide-react";
 import { ProductoFormData } from "./FormularioProducto";
 
-/** path: ruta al array dentro del formulario (ej. "detalle_celdas") */
 export const SeccionDetalleProductoCelda = ({ path }: { path: string }) => {
   const { control, setValue } = useFormContext<ProductoFormData>();
+  const { fields, append, remove } = useFieldArray({ control, name: path as any });
 
-  const { fields, append, remove } = useFieldArray({
-    control,
-    name: path as any,
-  });
+  const [contenedores, setContenedores] = useState<any[]>([]);
+  const [celdas, setCeldas] = useState<any[]>([]);
 
-  /* todos los inventarios existentes => para Select */
-  const inventarios = useWatch({ control, name: "inventarios" }) || [];
+  useEffect(() => {
+    const cargar = async () => {
+      try {
+        const [resCont, resCel] = await Promise.all([
+          fetch("http://localhost:3001/api/contenedor-fisico"),
+          fetch("http://localhost:3001/api/celda"),
+        ]);
 
-  /* blur que convierte a número */
-  const blur =
-    (idx: number, field: string) =>
-    (e: React.FocusEvent<HTMLInputElement>) =>
-      setValue(
-        `${path}.${idx}.${field}`,
-        e.target.value === "" ? undefined : Number(e.target.value)
-      );
+        const dataCont = await resCont.json();
+        const dataCel = await resCel.json();
+
+        setContenedores(Array.isArray(dataCont) ? dataCont : dataCont.data ?? []);
+        setCeldas(Array.isArray(dataCel) ? dataCel : dataCel.data ?? []);
+      } catch (err) {
+        console.error("Error cargando contenedores o celdas:", err);
+      }
+    };
+    cargar();
+  }, []);
+
+  const blur = (idx: number, field: string) => (e: React.FocusEvent<HTMLInputElement>) => {
+    const value = e.target.value.trim();
+    setValue(`${path}.${idx}.${field}`, value === "" ? undefined : Number(value));
+  };
 
   const Field = ({
-    label,
-    icon,
-    children,
-  }: {
-    label: string;
-    icon: React.ReactElement;
-    children: React.ReactNode;
-  }) => (
+    label, icon, children,
+  }: { label: string; icon: React.ReactElement; children: React.ReactNode }) => (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
       <div className="relative">
@@ -64,49 +61,41 @@ export const SeccionDetalleProductoCelda = ({ path }: { path: string }) => {
   return (
     <div className="space-y-3">
       {fields.map((c, idx) => (
-        <div
-          key={c.id}
-          className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end border p-3 rounded-md"
-        >
-          {/* inventario al que pertenece  */}
-          <Field label="Inventario virtual" icon={<Package className="h-4 w-4" />}>
+        <div key={c.id} className="grid grid-cols-1 sm:grid-cols-4 gap-2 items-end border p-3 rounded-md">
+          <Field label="Contenedor" icon={<LayoutGrid className="h-4 w-4" />}>
             <Select
-              defaultValue={c.idVirtualInventario ?? ""}
-              onValueChange={(v) =>
-                setValue(`${path}.${idx}.idVirtualInventario`, v)
-              }
+              defaultValue={c.contenedor_fisico_id?.toString() || ""}
+              onValueChange={(v) => setValue(`${path}.${idx}.contenedor_fisico_id`, Number(v))}
             >
               <SelectTrigger className="pl-10">
-                <SelectValue placeholder="Selecciona…" />
+                <SelectValue placeholder="Selecciona..." />
               </SelectTrigger>
               <SelectContent>
-                {inventarios.map((inv: any) => (
-                  <SelectItem key={inv.idVirtual} value={inv.idVirtual}>
-                    {inv.idVirtual}
+                {contenedores.map((cont) => (
+                  <SelectItem key={cont.id} value={cont.id.toString()}>
+                    {cont.nombre ?? `Contenedor ${cont.id}`}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </Field>
 
-          <Field label="Contenedor" icon={<LayoutGrid className="h-4 w-4" />}>
-            <Input
-              type="text"
-              inputMode="numeric"
-              className="pl-10"
-              defaultValue={c.contenedor_fisico_id ?? ""}
-              onBlur={blur(idx, "contenedor_fisico_id")}
-            />
-          </Field>
-
           <Field label="Celda" icon={<Hash className="h-4 w-4" />}>
-            <Input
-              type="text"
-              inputMode="numeric"
-              className="pl-10"
-              defaultValue={c.celda_id ?? ""}
-              onBlur={blur(idx, "celda_id")}
-            />
+            <Select
+              defaultValue={c.celda_id?.toString() || ""}
+              onValueChange={(v) => setValue(`${path}.${idx}.celda_id`, Number(v))}
+            >
+              <SelectTrigger className="pl-10">
+                <SelectValue placeholder="Selecciona..." />
+              </SelectTrigger>
+              <SelectContent>
+                {celdas.map((cel) => (
+                  <SelectItem key={cel.id} value={cel.id.toString()}>
+                    {cel.nombre ?? `Celda ${cel.id}`}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </Field>
 
           <Field label="Cantidad" icon={<PackageSearch className="h-4 w-4" />}>
@@ -126,7 +115,7 @@ export const SeccionDetalleProductoCelda = ({ path }: { path: string }) => {
             className="sm:col-span-4"
             onClick={() => remove(idx)}
           >
-            Eliminar
+            Eliminar celda
           </Button>
         </div>
       ))}
@@ -138,11 +127,12 @@ export const SeccionDetalleProductoCelda = ({ path }: { path: string }) => {
         onClick={() =>
           append({
             idVirtualInventario: "",
-            contenedor_fisico_id: undefined,
-            celda_id: undefined,
+            contenedor_fisico_id: contenedores[0]?.id ?? null,
+            celda_id: celdas[0]?.id ?? null,
             cantidad: undefined,
           })
         }
+        disabled={contenedores.length === 0 || celdas.length === 0}
       >
         + Agregar celda
       </Button>
