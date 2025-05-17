@@ -1,3 +1,4 @@
+// frontend/components/producto/form/SeccionUbicaciones.tsx
 "use client";
 
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
@@ -34,6 +35,8 @@ export const SeccionUbicaciones = () => {
 
   const [negocios, setNegocios] = useState<any[]>([]);
   const [ubicaciones, setUbicaciones] = useState<any[]>([]);
+  const [mostrarInventario, setMostrarInventario] = useState<Record<string, boolean>>({});
+  const [mostrarPrecio, setMostrarPrecio] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const fetchData = async () => {
@@ -48,6 +51,14 @@ export const SeccionUbicaciones = () => {
     };
     fetchData();
   }, []);
+
+  const toggleSeccion = (tipo: "inventario" | "precio", id: string) => {
+    if (tipo === "inventario") {
+      setMostrarInventario(prev => ({ ...prev, [id]: !prev[id] }));
+    } else {
+      setMostrarPrecio(prev => ({ ...prev, [id]: !prev[id] }));
+    }
+  };
 
   const addUbic = () => {
     const invId = uid("inv");
@@ -190,47 +201,51 @@ export const SeccionUbicaciones = () => {
                     checked={!!ubic.idVirtualPrecio}
                     onCheckedChange={v => toggle("precio", v, ubic, idx)}
                   />
-                    
                   <Label>Precio</Label>
                 </div>
               </div>
 
               {invObj && (
                 <div className="rounded-lg bg-muted/40 p-3">
-                  <div className="flex items-center gap-2 mb-3"> 
-                      <Badge
-                          variant="outline"
-                          className="bg-amber-50 text-amber-700 border-amber-300 flex items-center gap-1 px-2 py-1"
-                        >
-                          <PackageSearch className="h-4 w-4" /> Inventario
-                        </Badge>
-                     
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge
+                      variant="outline"
+                      onClick={() => toggleSeccion("inventario", ubic.idVirtualInventario)}
+                      className="cursor-pointer bg-amber-50 text-amber-700 border-amber-300 flex items-center gap-1 px-2 py-1"
+                    >
+                      <PackageSearch className="h-4 w-4" /> Inventario
+                    </Badge>
                   </div>
-                  <SeccionInventarios
-                    inv={invObj}
-                    idVirtual={ubic.idVirtualInventario}
-                    inventarios={inventarios}
-                    setValue={setValue}
-                  />
+                  {mostrarInventario[ubic.idVirtualInventario] && (
+                    <SeccionInventarios
+                      inv={invObj}
+                      idVirtual={ubic.idVirtualInventario}
+                      inventarios={inventarios}
+                      setValue={setValue}
+                    />
+                  )}
                 </div>
               )}
 
               {prObj && (
                 <div className="rounded-lg bg-muted/40 p-3">
                   <div className="flex items-center gap-2 mb-3">
-                     <Badge
-                          variant="outline"
-                          className="bg-emerald-50 text-emerald-700 border-emerald-300 flex items-center gap-1 px-2 py-1"
-                        >
-                          <DollarSign className="h-4 w-4" /> Precio
-                        </Badge>
+                    <Badge
+                      variant="outline"
+                      onClick={() => toggleSeccion("precio", ubic.idVirtualPrecio)}
+                      className="cursor-pointer bg-emerald-50 text-emerald-700 border-emerald-300 flex items-center gap-1 px-2 py-1"
+                    >
+                      <DollarSign className="h-4 w-4" /> Precio
+                    </Badge>
                   </div>
-                  <SeccionPrecios
-                    precio={prObj}
-                    idVirtual={ubic.idVirtualPrecio}
-                    precios={precios}
-                    setValue={setValue}
-                  />
+                  {mostrarPrecio[ubic.idVirtualPrecio] && (
+                    <SeccionPrecios
+                      precio={prObj}
+                      idVirtual={ubic.idVirtualPrecio}
+                      precios={precios}
+                      setValue={setValue}
+                    />
+                  )}
                 </div>
               )}
 
