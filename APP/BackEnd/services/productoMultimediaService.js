@@ -38,3 +38,5 @@ export const insertarMultimediaProductoTx = async (tx, data) => {
   const [nueva] = await tx.insert(ProductoMultimedia).values(data).returning();
   return nueva;
 };
+
+ 

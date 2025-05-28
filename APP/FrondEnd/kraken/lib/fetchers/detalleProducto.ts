@@ -15,7 +15,7 @@ export interface DetalleProducto {
   
   export async function getDetalleProductos(): Promise<DetalleProducto[]> {
     try {
-      const res = await fetch("http://localhost:3000/api/detalle-producto");
+      const res = await fetch("http://localhost:3001/api/detalle-producto");
       const data = await res.json();
       return Array.isArray(data.data) ? data.data : [];
     } catch (error) {

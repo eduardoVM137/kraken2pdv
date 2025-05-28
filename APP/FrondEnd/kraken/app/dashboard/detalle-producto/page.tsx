@@ -25,7 +25,7 @@ export default function DetalleProductoPage() {
   const [busqueda, setBusqueda] = useState("");
 
   useEffect(() => {
-    fetch("http://localhost:3000/api/detalle-producto")
+    fetch("http://localhost:3001/api/detalle-producto")
       .then(res => res.json())
       .then(json => setProductos(json.data || []))
       .catch(err => console.error("Error al cargar detalle_producto:", err));

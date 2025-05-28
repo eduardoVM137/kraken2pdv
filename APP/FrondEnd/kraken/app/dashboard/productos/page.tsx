@@ -18,7 +18,7 @@ export default function ProductosPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Catálogo de Productos</h1>
         <Button asChild>
-          <Link href="/dashboard/productos/nuevo">+ Nuevo producto</Link>
+          <Link href="/dashboard/productos/nuevo">+ Nuevop producto</Link>
         </Button>
       </div>
 

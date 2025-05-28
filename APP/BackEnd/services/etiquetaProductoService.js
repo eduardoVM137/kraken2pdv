@@ -56,3 +56,13 @@ export const insertarAliasProductoTx = async (tx, data) => {
   const [nueva] = await tx.insert(EtiquetaProducto).values(data).returning();
   return nueva;
 };
+
+
+export const buscarAliasPorCodigoService = async (codigo) => {
+  const resultado = await db
+    .select()
+    .from(EtiquetaProducto)
+    .where(eq(EtiquetaProducto.alias, codigo));
+
+  return resultado[0] || null;
+};

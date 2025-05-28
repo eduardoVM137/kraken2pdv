@@ -9,12 +9,16 @@ export default function CrearProductoPage() {
     <div className="p-4 max-w-6xl mx-auto">
       <Card>
         <CardHeader>
-          <CardTitle>Registrar nuevo producto</CardTitle>
+          <CardTitle>Registrar nuevok producto</CardTitle>
         </CardHeader>
         <CardContent>
           <FormularioProducto />
         </CardContent>
+          <CardContent>
+        </CardContent>
       </Card>
+      
     </div>
+    
   );
 }

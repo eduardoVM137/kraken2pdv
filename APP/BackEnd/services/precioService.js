@@ -38,3 +38,5 @@ export const buscarPreciosPorIdService = async (ids = []) => {
   if (!Array.isArray(ids) || ids.length === 0) return [];
   return await db.select().from(Precio).where(inArray(Precio.id, ids));
 };
+
+ 

@@ -3,7 +3,8 @@ import {
   mostrarPresentacionesController,
   insertarPresentacionController,
   editarPresentacionController,
-  eliminarPresentacionController,
+  eliminarPresentacionController,buscarPresentacionPorIdContoller,
+  buscarPresentacionesPorDetalleProductoController,
 } from "../controllers/presentacionController.js";
  
 import authMiddleware from '../middlewares/authMiddleware.js';
@@ -15,9 +16,11 @@ import { presentacionSchemaObligatorio } from "../middlewares/validarPresentacio
 const router = express.Router();
   
 
-router.get("/", mostrarPresentacionesController);
+router.get("/", mostrarPresentacionesController); 
 router.post("/", validateRequest(presentacionSchemaObligatorio),insertarPresentacionController);
 router.put("/:id", editarPresentacionController);
 router.delete("/:id", eliminarPresentacionController);
+router.get("/:id", buscarPresentacionPorIdContoller);
+router.get("/detalle/:detalle_producto_id", buscarPresentacionesPorDetalleProductoController); // 👈 nuevo
 
 export default router;

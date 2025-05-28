@@ -1,6 +1,6 @@
 import { db } from "../config/database.js";
 import { Inventario } from "../models/inventario.js";
-import { eq } from "drizzle-orm";
+import { eq,desc} from "drizzle-orm";
 import { inArray } from 'drizzle-orm';
 export const mostrarInventariosService = async () => {
   return await db.select().from(Inventario);
@@ -35,4 +35,16 @@ export const buscarInventarioPorDetalleProductoService = async (detalle_producto
 export const buscarInventariosPorIdService = async (ids = []) => {
   if (!Array.isArray(ids) || ids.length === 0) return [];
   return await db.select().from(Inventario).where(inArray(Inventario.id, ids));
+};
+
+
+export const buscarUltimoPrecioCostoService = async (detalle_producto_id) => {
+  const resultado = await db
+    .select()
+    .from(Inventario)
+    .where(eq(Inventario.detalle_producto_id, detalle_producto_id))
+    .orderBy(desc(Inventario.actualizado_en))
+    .limit(1);
+
+  return resultado[0] || null;
 };

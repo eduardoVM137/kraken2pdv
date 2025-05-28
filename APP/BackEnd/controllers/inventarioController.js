@@ -42,3 +42,18 @@ export const eliminarInventarioController = async (req, res, next) => {
     next(error);
   }
 };
+
+export const buscarInventarioPorDetalleProductoService = async (detalle_producto_id) => {
+  return await db
+    .select({
+      inventario_id: Inventario.id,
+      detalle_producto_id: Inventario.detalle_producto_id,
+      stock_actual: Inventario.cantidad,
+      precio_costo: Inventario.costo,
+      ubicacion_id: Inventario.ubicacion_id,
+      ubicacion_nombre: Ubicacion.nombre,
+    })
+    .from(Inventario)
+    .leftJoin(Ubicacion, eq(Inventario.ubicacion_id, Ubicacion.id))
+    .where(eq(Inventario.detalle_producto_id, detalle_producto_id));
+};

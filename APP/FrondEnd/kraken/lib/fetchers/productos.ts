@@ -11,7 +11,7 @@ export interface DetalleProducto {
 
 export async function getProductos(): Promise<DetalleProducto[]> {
   try {
-    const res = await fetch("http://localhost:3000/api/producto");
+    const res = await fetch("http://localhost:3001/api/producto");
 
     if (!res.ok) {
       throw new Error(`Error ${res.status} al obtener productos`);
@@ -29,4 +29,10 @@ export async function getProductos(): Promise<DetalleProducto[]> {
     console.error("❌ Error al obtener productos:", error);
     return [];
   }
+}
+
+export async function getProducto() {
+  const res = await fetch("http://localhost:3001/api/detalle-producto/147"); // o como tengas tu backend
+  const json = await res.json();
+  return json.data || [];
 }
