@@ -1,410 +1,434 @@
-// IMPORTS Y ESTADO
 "use client";
+import { useState, useMemo, useCallback } from "react";
+import { Input }        from "@/components/ui/input";
+import { Label }        from "@/components/ui/label";
+import { Button }       from "@/components/ui/button";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
-import { useState, useEffect } from "react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import Papa from "papaparse";
 
+/* --------------------------------------------------
+ *  Tipos
+ * ------------------------------------------------*/
 interface Producto {
+  /** Identificador único de la fila (igual al detalle_producto_id) */
+  rowId: string;
+  /** detalle_producto_id real */
   id: string;
   nombre: string;
-  descripcion: string;
-  imagen: string;
   codigoBarras: string;
-  alias?: string;
   precioAnterior: number;
   precioActual: number;
+  iva: number;
   cantidad: number;
-  presentacionId?: number;
-  cantidadPorPresentacion?: number;
-  presentacionNombre?: string;
+  presentacionId?: number | null;
+  cantidadPorPresentacion: number;
+  presentacionNombre: string;
 }
 
 interface DetalleExtendido {
-  [detalleId: string]: {
-    inventarios: any[];
-    precios: any[];
-  };
+  precios: { precio_venta: number; tipo_cliente_id: number }[];
+  inventarios: { ubicacion_nombre: string; stock_actual: number }[];
 }
 
+interface Presentacion { id: number; nombre: string; cantidad: number; }
+interface FilaImportada { codigo: string; cantidad?: number; precio?: number; iva?: number; }
+
+/* --------------------------------------------------
+ *  API helpers
+ * ------------------------------------------------*/
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+const json = (r: Response) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); };
+const api = {
+  buscarPorCodigo: (c: string) => fetch(`${API_BASE_URL}/api/detalle-producto/buscar-general/${c}`).then(json),
+  detalleExpandido: (id: string) => fetch(`${API_BASE_URL}/api/detalle-producto/detalle-expandido/${id}`).then(json),
+  presentaciones: (id: string) => fetch(`${API_BASE_URL}/api/presentacion/detalle/${id}`).then(json),
+  presentacionById: (id: number) => fetch(`${API_BASE_URL}/api/presentacion/${id}`).then(json),
+  productoUbicacion: (id: string) => fetch(`${API_BASE_URL}/api/producto-ubicacion/buscar-precio-inventario/${id}`).then(json),
+};
+
+/* --------------------------------------------------
+ *  Componente principal
+ * ------------------------------------------------*/
 export default function ComprasPage() {
+  /* ---------------- state ---------------- */
   const [factura, setFactura] = useState("001");
   const [proveedor, setProveedor] = useState("Proveedor General");
   const [codigo, setCodigo] = useState("");
   const [filtro, setFiltro] = useState("");
   const [productos, setProductos] = useState<Producto[]>([]);
-  const [detallesExtendidos, setDetallesExtendidos] = useState<DetalleExtendido>
-  ({});
-  const [presentacionesPorDetalle, setPresentacionesPorDetalle] = useState<Record<string, any[]>>({});
+  const [detallesExtendidos, setDetallesExtendidos] = useState<Record<string, DetalleExtendido>>({});
+  const [presentacionesPorDetalle, setPresentacionesPorDetalle] = useState<Record<string, Presentacion[]>>({});
 
-const productosFiltrados = productos.filter((p) => {
-  const nombreMatch = p.nombre?.toLowerCase().includes(filtro.toLowerCase());
-  const codigoMatch = p.alias?.includes(filtro);
-  return nombreMatch || codigoMatch;
-});
+  /* ---------------- derivadas ---------------- */
+  const productosFiltrados = useMemo(() => {
+    if (!filtro) return productos;
+    const f = filtro.toLowerCase();
+    return productos.filter(p => p.nombre.toLowerCase().includes(f) || p.codigoBarras.includes(f));
+  }, [productos, filtro]);
 
-// Nuevo cálculo: toma en cuenta precio, cantidad, IVA
-const subtotal = productosFiltrados.reduce((acc, p) => {
-  const totalPiezas = p.cantidad * (p.cantidadPorPresentacion || 1);
-  return acc + (p.precioActual || 0) * totalPiezas;
-}, 0);
+  const { subtotal, impuesto } = useMemo(() => {
+    return productosFiltrados.reduce((acc, p) => {
+      const piezas = p.cantidad * p.cantidadPorPresentacion;
+      const sub = p.precioActual * piezas;
+      acc.subtotal += sub;
+      acc.impuesto += (sub * p.iva) / 100;
+      return acc;
+    }, { subtotal: 0, impuesto: 0 });
+  }, [productosFiltrados]);
 
-const impuesto = productosFiltrados.reduce((acc, p) => {
-  const totalPiezas = p.cantidad * (p.cantidadPorPresentacion || 1);
-  const iva = p.iva || 0;
-  return acc + ((p.precioActual || 0) * totalPiezas * iva) / 100;
-}, 0);
+  /* ---------------- helpers ---------------- */
+  const actualizarProducto = (rowId: string, cambios: Partial<Producto>) =>
+    setProductos(prev => prev.map(p => p.rowId === rowId ? { ...p, ...cambios } : p));
+  const borrarProducto = (rowId: string) =>
+    setProductos(prev => prev.filter(p => p.rowId !== rowId));
+  /* ---------------- agregar producto ---------------- */
+  type AddStatus = "added" | "incremented" | "not_found";
+  const agregarProductoPorCodigo = useCallback(async (codeIn: string, fila?: Partial<FilaImportada>): Promise<AddStatus> => {
+    const code = codeIn.trim();
+    if (!code) return "not_found";
+    let data: any; try { data = await api.buscarPorCodigo(code); } catch { return "not_found"; }
+    if (!data?.detalle_producto_id) return "not_found";
 
-const total = subtotal + impuesto;
+    const rowKey = data.detalle_producto_id.toString();
 
- async function agregarProductoPorCodigo() {
-  if (!codigo.trim()) return;
-
-  const res = await fetch(`http://localhost:3001/api/detalle-producto/buscar-general/${codigo}`);
-  const data = await res.json();
-
-  if (!data || !data.detalle_producto_id) {
-    alert("Producto no encontrado");
-    return;
-  }
-
-  const detalleId = data.detalle_producto_id;
-
-  // Manejo de presentación: si no tiene, usar default
-  const tienePresentacion = !!data.presentacion_id;
-  const presentacionId = tienePresentacion ? data.presentacion_id : 0;
-  const cantidadPresentacion = tienePresentacion ? parseFloat(data.cantidad_presentacion) || 1 : 1;
-  const nombrePresentacion = tienePresentacion ? data.presentacion_nombre : "Sin presentación";
-
-  const nuevo: Producto = {
-    id: detalleId,
-    nombre: data.nombre,
-    descripcion: data.descripcion,
-    imagen: data.imagen || "/img/placeholder.png",
-    codigoBarras: data.codigo_barras,
-    alias: data.alias || "",
-    precioAnterior: parseFloat(data.precio_anterior) || 0,
-    precioActual: parseFloat(data.precio_actual) || 0,
-    cantidad: 1,
-    presentacionId,
-    cantidadPorPresentacion: cantidadPresentacion,
-    presentacionNombre: nombrePresentacion,
-  };
-
-  setProductos((prev) => [...prev, nuevo]);
-  setCodigo("");
-}
-
-
-  
-
-  async function cargarDetallesExtendidos() {
-    const nuevosDetalles: DetalleExtendido = {};
-    for (const p of productos) {
-      const detalles = await fetch(`http://localhost:3001/api/detalle-producto/detalle-expandido/${p.id}`).then(r => r.json());
-      nuevosDetalles[p.id] = {
-        precios: detalles.data?.precios || [],
-        inventarios: detalles.data?.inventarios || [],
+    let status: AddStatus = "added";
+    setProductos(prev => {
+      const idx = prev.findIndex(p => p.rowId === rowKey);
+      if (idx !== -1) {
+        status = "incremented";
+        const extraQty = fila?.cantidad !== undefined ? Number(fila.cantidad) : 1;
+        const next = [...prev];
+        next[idx] = { ...next[idx], cantidad: next[idx].cantidad + extraQty };
+        return next;
+      }
+      const nuevo: Producto = {
+        rowId: rowKey,
+        id: data.detalle_producto_id,
+        nombre: data.nombre,
+        codigoBarras: data.codigo_barras,
+        precioAnterior: parseFloat(data.precio_anterior) || 0,
+        precioActual: fila?.precio !== undefined ? Number(fila.precio) : (parseFloat(data.precio_actual) || 0),
+        iva: fila?.iva !== undefined ? Number(fila.iva) : (parseFloat(data.iva) || 0),
+        cantidad: fila?.cantidad !== undefined ? Number(fila.cantidad) : 1,
+        presentacionId: data.presentacion_id ?? null,
+        cantidadPorPresentacion: parseFloat(data.cantidad_presentacion) || 1,
+        presentacionNombre: data.presentacion_nombre || "Sin presentación",
       };
+      return [...prev, nuevo];
+    });
+    return status;
+  }, []);
+
+
+  /* ---------------- detalles extendidos ---------------- */
+const cargarDetallesExtendidos = useCallback(async () => {
+  const map: Record<string, DetalleExtendido> = {};
+
+  await Promise.all(productos.map(async p => {
+    try {
+      const res = await api.productoUbicacion(p.id);
+      const data = res.data;
+
+      const inventarios = data.map((item: any) => ({
+        ubicacion_nombre: item.ubicacion_nombre,
+        stock_actual: parseFloat(item.stock_actual),
+        stock_minimo: parseFloat(item.stock_minimo),
+        precio_costo: parseFloat(item.precio_costo),
+        precio_venta_sugerido: parseFloat(item.precio_venta),
+      }));
+
+      const precios = data.map((item: any) => ({
+        precio_id: item.precio_id,
+        precio_venta: parseFloat(item.precio_venta),
+        tipo_cliente_id: item.tipo_cliente_id,
+      }));
+
+      map[p.rowId] = { inventarios, precios };
+    } catch (err) {
+      console.error(`Error al cargar detalles de producto ${p.id}`, err);
     }
-    setDetallesExtendidos(nuevosDetalles);
-  }
+  }));
 
-  // === NUEVA FUNCIÓN PARA ACTUALIZAR CANTIDAD ===
-function actualizarCantidad(id: string, nuevaCantidad: number) {
-  setProductos((prev) =>
-    prev.map((p) =>
-      p.id === id ? { ...p, cantidad: nuevaCantidad } : p
-    )
-  );
-}
+  setDetallesExtendidos(map);
+}, [productos]);
 
-async function actualizarPresentacion(id: string, nuevaPresentacionId: number, nuevaCantidad: number) {
-  const productoActual = productos.find(p => p.id === id);
+    /* ---------------- import CSV ---------------- */
+  const handleFileImport = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  // También puedes buscar precio específico si lo deseas
-  const nuevoPrecio = productoActual?.precioActual || 0;
-
-  setProductos(prev =>
-    prev.map(p =>
-      p.id === id
-        ? {
-            ...p,
-            presentacionId: nuevaPresentacionId,
-            cantidadPorPresentacion: nuevaCantidad,
-            precioActual: nuevoPrecio, // aquí puedes cambiar por el precio asociado si lo manejas por presentación
-          }
-        : p
-    )
-  );
-}
-
-async function guardarCompra() {
-  if (!factura.trim()) return alert("La factura no puede estar vacía.");
-  if (productos.length === 0) return alert("Debes agregar al menos un producto.");
-
-  try {
-    const ingresoRes = await fetch("/api/ingreso", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ factura, proveedor }),
+    // PapaParse: usamos la callback complete para obtener los datos
+    const filas: FilaImportada[] = await new Promise((resolve, reject) => {
+      Papa.parse<FilaImportada>(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: ({ data }) => resolve(data),
+        error: err => reject(err),
+      });
     });
 
-    if (!ingresoRes.ok) throw new Error("No se pudo crear el ingreso.");
-
-    for (const p of productos) {
-      const totalPiezas = p.cantidad * (p.cantidadPorPresentacion || 1);
-
-      await fetch("/api/detalle-ingreso", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          factura,
-          detalle_producto_id: p.id,
-          cantidad: totalPiezas,
-          presentacion_id: p.presentacionId || null,
-          precio_unitario: p.precioActual,
-        }),
-      });
-
-      await fetch("/api/inventario", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          detalle_producto_id: p.id,
-          cantidad: totalPiezas,
-          costo: p.precioActual,
-        }),
-      });
-
-      if (p.precioActual !== p.precioAnterior) {
-        await fetch("/api/precio", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            detalle_producto_id: p.id,
-            precio_venta: p.precioActual,
-            tipo_cliente_id: 1,
-          }),
-        });
-      }
+    let added = 0, inc = 0, nf = 0;
+    for (const fila of filas) {
+      const st = await agregarProductoPorCodigo(fila.codigo, fila);
+      if (st === "added") added++; else if (st === "incremented") inc++; else nf++;
     }
 
-    alert("Compra registrada correctamente.");
-    setProductos([]);
-    setFactura("");
-    setProveedor("Proveedor General");
-    setDetallesExtendidos({});
-  } catch (error: any) {
-    console.error("Error al guardar compra:", error.message);
-    alert("Hubo un error al registrar la compra: " + error.message);
-  }
-}
-function actualizarPrecio(id: string, nuevoPrecio: number) {
-  setProductos((prev) =>
-    prev.map((p) => (p.id === id ? { ...p, precioActual: nuevoPrecio } : p))
-  );
-}
+    alert(`Importación terminada.
+            Nuevos: ${added}
+            Cantidad aumentada: ${inc}
+            No encontrados: ${nf}`);
+                e.target.value = "";
+              };
 
-function actualizarIVA(id: string, nuevoIVA: number) {
-  setProductos((prev) =>
-    prev.map((p) => (p.id === id ? { ...p, iva: nuevoIVA } : p))
-  );
-}
+    /* ---------------- UI helpers ---------------- */
+  const presentacionLabel = (p: Producto) => {
+    const lista = presentacionesPorDetalle[p.id];
+    if (!lista || p.presentacionId == null) return `${p.presentacionNombre} — ${p.cantidadPorPresentacion} pz`;
+    const m = lista.find(pr => pr.id === p.presentacionId);
+    return m ? `${m.nombre} — ${m.cantidad} pz` : `ID ${p.presentacionId}`;
+  };
+  
+    /* ---------------- render ---------------- */
+  return (
+    <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <h1 className="text-3xl font-bold">Panel de Compras</h1>
 
-return (
-  <main className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <h1 className="text-3xl font-bold mb-6">Panel de Compras</h1>
-
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-      <div>
-        <Label>Factura</Label>
-        <Input value={factura} onChange={(e) => setFactura(e.target.value)} />
-      </div>
-      <div>
-        <Label>Proveedor</Label>
-        <Select onValueChange={setProveedor} value={proveedor}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Proveedor General">Proveedor General</SelectItem>
-            <SelectItem value="Proveedor Alterno">Proveedor Alterno</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label>Código presentación / producto</Label>
-        <div className="flex gap-2 mt-1">
-          <Input placeholder="Escanea o escribe código" value={codigo} onChange={(e) => setCodigo(e.target.value)} />
-          <Button onClick={agregarProductoPorCodigo}>Agregar</Button>
+      {/* Encabezado */}
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <Label>Factura</Label>
+          <Input value={factura} onChange={e => setFactura(e.target.value)} />
         </div>
-      </div>
-    </div>
 
-    <div className="flex justify-between items-center mb-4">
-      <Input placeholder="Filtrar por nombre o código" value={filtro} onChange={(e) => setFiltro(e.target.value)} className="max-w-xs" />
-      <Button variant="outline" onClick={cargarDetallesExtendidos}>Ver detalles</Button>
-    </div>
+        <div>
+          <Label>Proveedor</Label>
+          <Select value={proveedor} onValueChange={setProveedor}>
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccione proveedor" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Proveedor General">Proveedor General</SelectItem>
+              <SelectItem value="Proveedor Alterno">Proveedor Alterno</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-    <Table>
-      <TableHeader>
-     <TableRow>
-      <TableHead>Producto</TableHead>
-      <TableHead>Alias</TableHead>
-      <TableHead>Precio Anterior</TableHead>
-      <TableHead>Precio Actual</TableHead>
-      <TableHead>IVA %</TableHead>
-      <TableHead>Cantidad</TableHead>
-      <TableHead>Presentación</TableHead>
-      <TableHead>Detalles</TableHead>
-      <TableHead>Acciones</TableHead>
-    </TableRow>
-      </TableHeader>
-<TableBody>
-  {productosFiltrados.length === 0 ? ( 
-      <TableRow>
-        <TableCell colSpan={9} className="text-center text-muted-foreground py-6">
-          No hay productos que coincidan con el filtro.
-        </TableCell>
-      </TableRow>
-    ) : (
-      productosFiltrados.map((p) => {
-        const totalPiezas = p.cantidad * (p.cantidadPorPresentacion || 1);
-        const detalle = detallesExtendidos[p.id];
-        const presentacionActual = (presentacionesPorDetalle[p.id] || []).find(pr => pr.id === p.presentacionId);
-
-        return (
-      <TableRow key={p.id}>
-            <TableCell>{p.nombre}</TableCell>
-            <TableCell>{p.codigoBarras}</TableCell>
-            <TableCell>S/ {p.precioAnterior.toFixed(2)}</TableCell>
-            <TableCell>
-              <Input
-                type="number"
-                value={p.precioActual}
-                className="w-24"
-                onChange={(e) => actualizarPrecio(p.id, parseFloat(e.target.value) || 0)}
-              />
-            </TableCell>
-            <TableCell>
-              <Input
-                type="number"
-                value={p.iva ?? 0}
-                className="w-16"
-                min={0}
-                max={100}
-                onChange={(e) => actualizarIVA(p.id, parseFloat(e.target.value) || 0)}
-              />
-            </TableCell>
-          {/* Cantidad */}
-          <TableCell>
+        <div>
+          <Label>Código</Label>
+          <div className="flex gap-2 mt-1">
             <Input
-              type="number"
-              min={1}
-              className="w-20"
-              value={p.cantidad}
-              onChange={(e) => actualizarCantidad(p.id, parseInt(e.target.value) || 1)}
+              placeholder="Escanea o escribe código"
+              value={codigo}
+              onChange={e => setCodigo(e.target.value)}
+              onKeyDown={async e => {
+                if (e.key === "Enter") {
+                  const st = await agregarProductoPorCodigo(codigo);
+                  if (st === "not_found") alert("No encontrado");
+                  setCodigo("");
+                }
+              }}
             />
-            <div className="text-xs text-muted-foreground mt-1">
-              {p.cantidad} x {p.cantidadPorPresentacion || 1} = {totalPiezas} pz
-            </div>
-          </TableCell>
+            <Button
+              onClick={async () => {
+                const st = await agregarProductoPorCodigo(codigo);
+                if (st === "not_found") alert("No encontrado");
+                setCodigo("");
+              }}
+            >
+              Agregar
+            </Button>
+          </div>
+        </div>
+      </section>
 
-          {/* Presentación */}
-          <TableCell>
-  <Select
-    value={p.presentacionId?.toString() || ""}
-    onOpenChange={async (open) => {
-      if (open && !presentacionesPorDetalle[p.id]) {
-        try {
-          const res = await fetch(`http://localhost:3001/api/presentacion/detalle/${p.id}`);
-          const data = await res.json();
-          if (data?.data?.length) {
-            setPresentacionesPorDetalle(prev => ({
-              ...prev,
-              [p.id]: data.data
-            }));
-          }
-        } catch (err) {
-          console.error("Error cargando presentaciones:", err);
-        }
-      }
-    }}
-    onValueChange={async (val) => {
-      const nuevaPresentacionId = parseInt(val);
-      const res = await fetch(`http://localhost:3001/api/presentacion/${nuevaPresentacionId}`);
-      const data = await res.json();
-      const nuevaCantidad = parseFloat(data?.data?.cantidad) || 1;
-      actualizarPresentacion(p.id, nuevaPresentacionId, nuevaCantidad);
-    }}
-  >
-    <SelectTrigger className="w-44">
-<SelectValue>
-  {
-    presentacionesPorDetalle[p.id]?.find(pr => pr.id === p.presentacionId)
-      ? `${presentacionesPorDetalle[p.id].find(pr => pr.id === p.presentacionId)?.nombre} — ${
-          presentacionesPorDetalle[p.id].find(pr => pr.id === p.presentacionId)?.cantidad || "?"
-        } pz`
-      : `${p.presentacionNombre || `ID ${p.presentacionId}`} — ${p.cantidadPorPresentacion || 1} pz`
-  }
-</SelectValue>
+      {/* Filtro + import */}
+      <section className="flex flex-col sm:flex-row sm:justify-between gap-4 items-start sm:items-center">
+        <Input
+          value={filtro}
+          onChange={e => setFiltro(e.target.value)}
+          className="max-w-xs"
+          placeholder="Filtrar por nombre o código"
+        />
 
+        <div className="flex gap-2 items-center">
+          <Button variant="outline" onClick={cargarDetallesExtendidos}>
+            Ver detalles
+          </Button>
 
-    </SelectTrigger>
-<SelectContent>
-  <SelectItem value="0">Sin presentación — 1 pz</SelectItem>
-  {(presentacionesPorDetalle[p.id] || []).map(pres => (
-    <SelectItem key={pres.id} value={pres.id.toString()}>
-      {pres.nombre} — {pres.cantidad} pz
-    </SelectItem>
-  ))}
-</SelectContent>
+          <input
+            id="fileInput"
+            type="file"
+            accept=".csv,text/csv,application/vnd.ms-excel"
+            className="hidden"
+            onChange={handleFileImport}
+          />
+          <Button asChild variant="secondary">
+            <label htmlFor="fileInput" className="cursor-pointer">
+              Importar CSV
+            </label>
+          </Button>
+        </div>
+      </section>
 
-  </Select>
-</TableCell>
-
-
-
-
-          {/* Detalles */}
-  <TableCell>
-              {detalle && (
-                <div className="text-xs space-y-1">
-                  {detalle.inventarios.map((inv, idx) => (
-                    <div key={idx}>📦 {inv.ubicacion_nombre || "Ubicación"} — {inv.stock_actual} pz</div>
-                  ))}
-                  {detalle.precios.map((pr, idx) => (
-                    <div key={idx}>💲 S/ {pr.precio_venta} — Tipo {pr.tipo_cliente_id}</div>
-                  ))}
-                </div>
-              )}
-            </TableCell>
-            <TableCell>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={() => setProductos(productos.filter((prod) => prod.id !== p.id))}
-              >
-                Eliminar
-              </Button>
-            </TableCell>
+      {/* Tabla */}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Producto</TableHead>
+            <TableHead>Cod. Barras</TableHead>
+            <TableHead>$ Anterior</TableHead>
+            <TableHead>$ Actual</TableHead>
+            <TableHead>IVA %</TableHead>
+            <TableHead>Cantidad</TableHead>
+            <TableHead>Presentación</TableHead>
+            <TableHead>Detalles</TableHead>
+            <TableHead>Acciones</TableHead>
           </TableRow>
-        );
-      })
-    )}
-  </TableBody>
-</Table>
+        </TableHeader>
 
-    <div className="flex justify-between items-center border-t pt-4 mt-6">
- <div className="space-y-1 text-sm">
-  <div>Subtotal: S/ {subtotal.toFixed(2)}</div>
-  <div>Impuesto: S/ {impuesto.toFixed(2)}</div>
-  <div className="font-semibold">Total: S/ {total.toFixed(2)}</div>
-</div>
-      <Button onClick={guardarCompra}>Enviar</Button>
-    </div>
-  </main>
-);
+        <TableBody>
+          {productosFiltrados.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={9} className="text-center py-6 text-muted-foreground">
+                No hay productos que coincidan.
+              </TableCell>
+            </TableRow>
+          ) : (
+            productosFiltrados.map(p => {
+              const piezas = p.cantidad * p.cantidadPorPresentacion;
+              const detalle = detallesExtendidos[p.rowId];
+
+              return (
+                <TableRow key={p.rowId} className="align-top">
+                  <TableCell>{p.nombre}</TableCell>
+                  <TableCell>{p.codigoBarras}</TableCell>
+                  <TableCell>S/ {p.precioAnterior.toFixed(2)}</TableCell>
+
+                  <TableCell>
+                    <Input
+                      type="number"
+                      className="w-24"
+                      value={p.precioActual}
+                      onChange={e =>
+                        actualizarProducto(p.rowId, { precioActual: parseFloat(e.target.value) || 0 })
+                      }
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <Input
+                      type="number"
+                      className="w-20"
+                      min={0}
+                      max={100}
+                      value={p.iva}
+                      onChange={e =>
+                        actualizarProducto(p.rowId, { iva: parseFloat(e.target.value) || 0 })
+                      }
+                    />
+                  </TableCell>
+
+                  <TableCell>
+                    <Input
+                      type="number"
+                      min={1}
+                      className="w-20"
+                      value={p.cantidad}
+                      onChange={e =>
+                        actualizarProducto(p.rowId, { cantidad: parseInt(e.target.value) || 1 })
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {p.cantidad} × {p.cantidadPorPresentacion} = {piezas} pz
+                    </p>
+                  </TableCell>
+
+                  <TableCell>
+                    <Select
+                      value={p.presentacionId?.toString() ?? "0"}
+                      onOpenChange={async open => {
+                        if (open && !presentacionesPorDetalle[p.id]) {
+                          const data = await api.presentaciones(p.id);
+                          setPresentacionesPorDetalle(prev => ({ ...prev, [p.id]: data.data ?? [] }));
+                        }
+                      }}
+                      onValueChange={async val => {
+                        const idPres = parseInt(val);
+                        if (idPres === 0) {
+                          return actualizarProducto(p.rowId, {
+                            presentacionId: null,
+                            cantidadPorPresentacion: 1,
+                          });
+                        }
+                        const { data } = await api.presentacionById(idPres);
+                        actualizarProducto(p.rowId, {
+                          presentacionId: idPres,
+                          cantidadPorPresentacion: parseFloat(data?.cantidad) || 1,
+                        });
+                      }}
+                    >
+                      <SelectTrigger className="w-44">
+                        <SelectValue>{presentacionLabel(p)}</SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">Sin presentación — 1 pz</SelectItem>
+                        {(presentacionesPorDetalle[p.id] || []).map(pr => (
+                          <SelectItem key={pr.id} value={pr.id.toString()}>
+                            {pr.nombre} — {pr.cantidad} pz
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+
+                  <TableCell>
+       {detalle && (
+                    <div className="space-y-1 text-xs">
+                      {detalle.inventarios.map((i, idx) => (
+                        <div key={idx}>📦 {i.ubicacion_nombre} — {i.stock_actual} pz — ${parseFloat(i.precio_costo ?? "0").toFixed(2)}</div>
+                      ))}
+                      {detalle.precios.map((pr, idx) => (
+                        <div key={idx}>💲 {pr.precio_venta} — Cliente tipo {pr.tipo_cliente_id}</div>
+                      ))}
+                    </div>
+                  )}<
+                  </TableCell>
+
+                  <TableCell>
+                    <Button variant="destructive" size="sm" onClick={() => borrarProducto(p.rowId)}>
+                      Eliminar
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
+                {/* Totales */}
+      <footer className="flex justify-between items-center border-t pt-4">
+        <div className="space-y-1 text-sm">
+          <div>Subtotal: S/ {subtotal.toFixed(2)}</div>
+          <div>Impuesto: S/ {impuesto.toFixed(2)}</div>
+          <div className="font-semibold">Total: S/ {(subtotal + impuesto).toFixed(2)}</div>
+        </div>
+        <Button onClick={() => console.log("TODO: guardarCompra")}>Enviar</Button>
+      </footer>
+    </main>
+  );
 }

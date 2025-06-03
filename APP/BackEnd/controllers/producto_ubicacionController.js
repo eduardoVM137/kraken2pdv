@@ -2,7 +2,7 @@ import {
   mostrarProductoUbicacionsService,
   insertarProductoUbicacionService,
   editarProductoUbicacionService,
-  eliminarProductoUbicacionService,
+  eliminarProductoUbicacionService,buscarProductoUbicacionService
 } from "../services/producto_ubicacionService.js";
 
 export const mostrarProductoUbicacionsController = async (req, res, next) => {
@@ -41,4 +41,14 @@ export const eliminarProductoUbicacionController = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+// controllers/productoUbicacionController.js
+export const buscarProductoUbicacionController = async (req, res, next) => {
+  const id = Number(req.params.id);
+  if (isNaN(id)) return res.status(400).json({message: 'ID inválido'});
+  try {
+    const data = await buscarProductoUbicacionService(id);   // 🔸
+    res.json({data});
+  } catch (e) { next(e); }
 };
