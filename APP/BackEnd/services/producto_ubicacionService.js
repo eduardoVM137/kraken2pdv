@@ -41,7 +41,10 @@ export const buscarUbicacionesPorDetalleProductoService = async (detalle_product
 export const buscarProductoUbicacionService = async (detalleId) => {
   return await db
     .select({
+      // columnas de producto_ubicacion
+      producto_ubicacion_id : ProductoUbicacion.id,
       // columnas de ubicacion_fisica
+      ubicacion_fisica_id : UbicacionFisica.id,
       ubicacion_fisica_id : UbicacionFisica.id,
       ubicacion_nombre    : UbicacionFisica.nombre,
 

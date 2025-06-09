@@ -1,17 +1,22 @@
 // lib/fetchers/productos.ts
-
-export interface DetalleProducto {
-  id: number;
-  nombre: string;
-  descripcion?: string;
-  activo: boolean;
-  categoria_id: number;
-  state_id?: number | null;
+export interface Presentacion {
+  presentacion_id: number;
+  nombre_presentacion: string;
+  cantidad_presentacion: number;
+  precio_venta: number;
+  stock_actual: number;
 }
 
-export async function getProductos(): Promise<DetalleProducto[]> {
+export interface Producto {
+  detalle_producto_id: number;
+  nombre_calculado: string;
+  foto_url: string;
+  presentaciones: Presentacion[];
+}
+
+export async function getProductos(): Promise<Producto[]> {
   try {
-    const res = await fetch("http://localhost:3001/api/producto");
+    const res = await fetch("http://localhost:3001/api/venta/productos");
 
     if (!res.ok) {
       throw new Error(`Error ${res.status} al obtener productos`);
@@ -29,10 +34,4 @@ export async function getProductos(): Promise<DetalleProducto[]> {
     console.error("❌ Error al obtener productos:", error);
     return [];
   }
-}
-
-export async function getProducto() {
-  const res = await fetch("http://localhost:3001/api/detalle-producto/147"); // o como tengas tu backend
-  const json = await res.json();
-  return json.data || [];
 }

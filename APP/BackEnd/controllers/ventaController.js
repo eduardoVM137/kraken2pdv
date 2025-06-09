@@ -3,7 +3,80 @@ import {
   insertarVentaService,
   editarVentaService,
   eliminarVentaService,
+  obtenerProductosVentaCompacto,obtenerPresentacionesPorProducto,
 } from "../services/ventaService.js";
+
+
+ 
+ export const mostrarProductosVentaController = async (req, res, next) => {
+  try {
+    const [registros, presentaciones] = await Promise.all([
+      obtenerProductosVentaCompacto(),
+      obtenerPresentacionesPorProducto(),
+    ]);
+
+    const productosMap = new Map();
+
+    for (const row of registros) {
+      const {
+        detalle_producto_id,
+        nombre_calculado,
+        foto,
+        stock_actual,
+        precio_id,
+        presentacion_id,
+        tipo_cliente,
+        precio_venta,
+      } = row;
+
+      if (!productosMap.has(detalle_producto_id)) {
+        productosMap.set(detalle_producto_id, {
+          detalle_producto_id,
+          nombre_calculado,
+          fotos: foto ? [foto] : [],
+          stock_total: 0,
+          precios: [],
+          presentaciones: [],
+        });
+      }
+
+      const prod = productosMap.get(detalle_producto_id);
+
+      // Agregar foto si no está repetida
+      if (foto && !prod.fotos.includes(foto)) {
+        prod.fotos.push(foto);
+      }
+
+      // Agregar stock
+      prod.stock_total += Number(stock_actual ?? 0);
+
+      // Agregar precio si no está duplicado por ID
+      if (!prod.precios.some(p => p.precio_id === precio_id)) {
+        prod.precios.push({ precio_id, presentacion_id, tipo_cliente, precio_venta });
+      }
+    }
+
+    for (const pres of presentaciones) {
+      const prod = productosMap.get(pres.detalle_producto_id);
+      if (prod && !prod.presentaciones.some(p => p.presentacion_id === pres.id)) {
+        prod.presentaciones.push({
+          presentacion_id: pres.id,
+          nombre_presentacion: pres.nombre,
+          cantidad_presentacion: Number(pres.cantidad ?? 0),
+        });
+      }
+    }
+
+    res.status(200).json({ data: Array.from(productosMap.values()) });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+
+
 
 export const mostrarVentasController = async (req, res, next) => {
   try {
@@ -13,6 +86,9 @@ export const mostrarVentasController = async (req, res, next) => {
     next(error);
   }
 };
+
+
+
 
 export const insertarVentaController = async (req, res, next) => {
   try {

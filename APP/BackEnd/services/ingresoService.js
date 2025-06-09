@@ -1,6 +1,10 @@
 import { db } from "../config/database.js";
 import { Ingreso } from "../models/ingreso.js";
-import { eq } from "drizzle-orm";
+import { DetalleIngreso } from "../models/detalle_ingreso.js";
+import { Proveedor } from "../models/proveedor.js";
+import { DetalleProducto } from "../models/detalle_producto.js";
+import { eq, and, between, gte, lte, like, sql } from "drizzle-orm";
+
 
 export const mostrarIngresosService = async () => {
   return await db.select().from(Ingreso);
@@ -19,4 +23,179 @@ export const editarIngresoService = async (id, data) => {
 export const eliminarIngresoService = async (id) => {
   const eliminado = await db.delete(Ingreso).where(eq(Ingreso.id, id)).returning();
   return eliminado.length > 0;
+};
+
+
+// 1. Historial de compras (con buscador y filtros)
+export const buscarIngresosService = async (filtros = {}) => {
+  const { estado, proveedorId, desde, hasta, usuarioId, producto } = filtros;
+
+  let query = db.select().from(Ingreso);
+
+  if (estado) query = query.where(eq(Ingreso.state_id, estado));
+  if (proveedorId) query = query.where(eq(Ingreso.proveedor_id, proveedorId));
+  if (desde && hasta) query = query.where(between(Ingreso.fecha, desde, hasta));
+  if (usuarioId) query = query.where(eq(Ingreso.usuario_id, usuarioId));
+  if (producto) {
+    query = query.where(
+      sql`${DetalleIngreso}.detalle_producto_id IN (SELECT id FROM ${DetalleProducto} WHERE nombre_calculado ILIKE ${`%${producto}%`})`
+    );
+  }
+
+  return await query;
+};
+
+// 2. Ver detalle completo de una compra
+export const obtenerDetalleCompraService = async (ingresoId) => {
+  const ingreso = await db.select().from(Ingreso).where(eq(Ingreso.id, ingresoId)).limit(1);
+  const detalle = await db
+    .select({ ...DetalleIngreso, producto: DetalleProducto.nombre_calculado })
+    .from(DetalleIngreso)
+    .innerJoin(DetalleProducto, eq(DetalleIngreso.detalle_producto_id, DetalleProducto.id))
+    .where(eq(DetalleIngreso.ingreso_id, ingresoId));
+
+  return { ingreso: ingreso[0], productos: detalle };
+};
+
+// 3. Pendientes por completar
+export const listarIngresosPendientesService = async () => {
+  return await db.select().from(Ingreso).where(eq(Ingreso.state_id, 1)); // 1 = pendiente
+};
+
+// 4. Vista de cancelados
+export const listarIngresosCanceladosService = async () => {
+  return await db.select().from(Ingreso).where(eq(Ingreso.state_id, 3)); // 3 = cancelado
+};
+
+// 5. Comparación de precios entre proveedores por producto
+export const compararPreciosPorProductoService = async (detalleProductoId) => {
+  return await db
+    .select({
+      proveedor: Proveedor.nombre,
+      precio: DetalleIngreso.precio_costo,
+      fecha: Ingreso.fecha,
+    })
+    .from(DetalleIngreso)
+    .innerJoin(Ingreso, eq(Ingreso.id, DetalleIngreso.ingreso_id))
+    .innerJoin(Proveedor, eq(Proveedor.id, Ingreso.proveedor_id))
+    .where(eq(DetalleIngreso.detalle_producto_id, detalleProductoId))
+    .orderBy(DetalleIngreso.precio_costo);
+};
+
+// 6. Último precio de compra por producto y proveedor
+export const ultimoPrecioProductoProveedorService = async () => {
+  return await db.execute(sql`
+    SELECT DISTINCT ON (di.detalle_producto_id, i.proveedor_id)
+      di.detalle_producto_id,
+      i.proveedor_id,
+      di.precio_costo,
+      i.fecha
+    FROM ${DetalleIngreso} di
+    JOIN ${Ingreso} i ON di.ingreso_id = i.id
+    ORDER BY di.detalle_producto_id, i.proveedor_id, i.fecha DESC
+  `);
+};
+
+// 7. Evolución del precio de un producto
+export const evolucionPrecioProductoService = async (detalleProductoId) => {
+  return await db
+    .select({ fecha: Ingreso.fecha, precio: DetalleIngreso.precio_costo, proveedor: Proveedor.nombre })
+    .from(DetalleIngreso)
+    .innerJoin(Ingreso, eq(DetalleIngreso.ingreso_id, Ingreso.id))
+    .innerJoin(Proveedor, eq(Proveedor.id, Ingreso.proveedor_id))
+    .where(eq(DetalleIngreso.detalle_producto_id, detalleProductoId))
+    .orderBy(Ingreso.fecha);
+};
+
+// 8. Ranking de proveedores por gasto total
+export const rankingProveedoresService = async () => {
+  return await db.execute(sql`
+    SELECT p.id, p.nombre, COUNT(i.id) AS num_ingresos, SUM(di.cantidad * di.precio_costo) AS total_comprado
+    FROM ${Proveedor} p
+    JOIN ${Ingreso} i ON i.proveedor_id = p.id
+    JOIN ${DetalleIngreso} di ON di.ingreso_id = i.id
+    GROUP BY p.id
+    ORDER BY total_comprado DESC
+  `);
+};
+
+// 9. Productos con disminución de precio
+export const productosConPrecioBajoService = async () => {
+  return await db.execute(sql`
+    SELECT di.detalle_producto_id, dp.nombre_calculado, di.precio_costo,
+      ROUND(AVG(di.precio_costo) OVER (PARTITION BY di.detalle_producto_id), 2) AS promedio
+    FROM ${DetalleIngreso} di
+    JOIN ${DetalleProducto} dp ON dp.id = di.detalle_producto_id
+    WHERE di.precio_costo < (
+      SELECT AVG(di2.precio_costo)
+      FROM ${DetalleIngreso} di2
+      WHERE di2.detalle_producto_id = di.detalle_producto_id
+    )
+    ORDER BY dp.id
+  `);
+};
+
+// 10. Recomendación de cantidad promedio de compra
+export const promedioCantidadPorProductoService = async () => {
+  return await db.execute(sql`
+    SELECT di.detalle_producto_id, dp.nombre_calculado,
+      ROUND(AVG(di.cantidad), 2) AS promedio_cantidad,
+      MAX(di.cantidad) AS maximo,
+      COUNT(*) AS veces_comprado
+    FROM ${DetalleIngreso} di
+    JOIN ${DetalleProducto} dp ON dp.id = di.detalle_producto_id
+    GROUP BY di.detalle_producto_id, dp.nombre_calculado
+    HAVING COUNT(*) > 3
+    ORDER BY promedio_cantidad DESC
+  `);
+};
+
+// 11. Compras repetidas en poco tiempo
+export const comprasRepetidasService = async () => {
+  return await db.execute(sql`
+    SELECT 
+      i1.id AS ingreso_1, 
+      i2.id AS ingreso_2, 
+      i1.fecha AS fecha1, 
+      i2.fecha AS fecha2, 
+      i1.proveedor_id, 
+      i1.total
+    FROM ${Ingreso} i1
+    JOIN ${Ingreso} i2 
+      ON i1.proveedor_id = i2.proveedor_id 
+      AND i1.total = i2.total 
+      AND ABS(EXTRACT(EPOCH FROM (i1.fecha - i2.fecha))) < 300
+    WHERE i1.id <> i2.id
+  `);
+};
+
+// 12. Análisis completo de producto para compras
+export const analisisProductoComprasService = async (detalleProductoId) => {
+  const promedioCantidad = await db.execute(sql`
+    SELECT ROUND(AVG(cantidad), 2) AS promedio_cantidad
+    FROM ${DetalleIngreso}
+    WHERE detalle_producto_id = ${detalleProductoId}
+  `);
+
+  const evolucionPrecio = await evolucionPrecioProductoService(detalleProductoId);
+
+  const comparacionProveedores = await compararPreciosPorProductoService(detalleProductoId);
+
+  const ultimoPrecios = await db.execute(sql`
+    SELECT DISTINCT ON (i.proveedor_id)
+      i.proveedor_id,
+      di.precio_costo,
+      i.fecha
+    FROM ${DetalleIngreso} di
+    JOIN ${Ingreso} i ON di.ingreso_id = i.id
+    WHERE di.detalle_producto_id = ${detalleProductoId}
+    ORDER BY i.proveedor_id, i.fecha DESC
+  `);
+
+  return {
+    promedioCantidad: promedioCantidad[0]?.promedio_cantidad || 0,
+    evolucionPrecio,
+    comparacionProveedores,
+    ultimoPrecios
+  };
 };
