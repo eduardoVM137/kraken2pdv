@@ -5,7 +5,7 @@ import {
   eliminarProductoController,
   mostrarProductosController,
   buscarProductoIdController,
-  buscarProductoNombreDescripcionController,
+  buscarProductoNombreDescripcionController,getInventarioYPrecios,getMovimientosPrecio,
 } from "../controllers/productosController.js";
 import authMiddleware from '../middlewares/authMiddleware.js';
 const router = express.Router();
@@ -16,6 +16,9 @@ router.delete("/:id", eliminarProductoController);
 router.get("/", mostrarProductosController);
 router.get("/buscar", buscarProductoNombreDescripcionController);
 router.get("/:id", buscarProductoIdController);
+router.post("/inventario-precios",getInventarioYPrecios);
+router.get("/movimientos/:id", getMovimientosPrecio);
+
 
 export default router;
 

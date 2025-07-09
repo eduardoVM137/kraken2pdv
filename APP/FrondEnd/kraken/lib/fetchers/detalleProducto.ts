@@ -19,7 +19,7 @@ export interface DetalleProducto {
       const data = await res.json();
       return Array.isArray(data.data) ? data.data : [];
     } catch (error) {
-      console.error("❌ Error al obtener detalle de productos:", error);
+      console.error("❌ Error al obtener detalle de productos:", error);S
       return [];
     }
   }

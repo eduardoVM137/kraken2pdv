@@ -4,7 +4,7 @@ import {
     eliminarProductoService,
     mostrarProductosService,
     buscarProductoIdService,
-    buscarProductoNombreDescripcionService,
+    buscarProductoNombreDescripcionService,obtenerPreciosInventarios,getHistorialDetalleProducto  ,
   } from "../services/productoService.js";
   
   export const insertarProductoController = async (req, res, next) => {
@@ -80,4 +80,47 @@ import {
       next(error);
     }
   };
-  
+  export async function getInventarioYPrecios(req, res) {
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        message: "Se requiere una lista válida de IDs de detalle_producto.",
+      });
+    }
+
+    const data = await obtenerPreciosInventarios(ids);
+
+    res.status(200).json({
+      message: "Inventarios y precios obtenidos correctamente",
+      data,
+    });
+  } catch (error) {
+    console.error("Error en getInventarioYPrecios:", error);
+    res.status(500).json({
+      message: "Error interno del servidor",
+    });
+  }
+}
+
+
+export async function getMovimientosPrecio(req, res) {
+  try {
+    const detalleProductoId = parseInt(req.params.id);
+
+    if (isNaN(detalleProductoId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    const movimientos = await getHistorialDetalleProducto (detalleProductoId);
+
+    res.status(200).json({
+      message: "Movimientos de precio obtenidos correctamente",
+      data: movimientos,
+    });
+  } catch (err) {
+    console.error("Error en getMovimientosPrecio:", err);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+}
