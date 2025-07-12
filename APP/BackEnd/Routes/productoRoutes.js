@@ -5,7 +5,10 @@ import {
   eliminarProductoController,
   mostrarProductosController,
   buscarProductoIdController,
-  buscarProductoNombreDescripcionController,getInventarioYPrecios,getMovimientosPrecio,
+  buscarProductoNombreDescripcionController,getInventarioYPrecios,getMovimientosPrecio,mostrarProductosPrecioController,
+    productosCriticosController,
+  productosConMetricasController,
+  productosPrioritariosController,
 } from "../controllers/productosController.js";
 import authMiddleware from '../middlewares/authMiddleware.js';
 const router = express.Router();
@@ -13,12 +16,15 @@ const router = express.Router();
 router.post("/", insertarProductoController);
 router.put("/:id", editarProductoController);
 router.delete("/:id", eliminarProductoController);
-router.get("/", mostrarProductosController);
+// router.get("/", mostrarProductosController);
+router.get("/", mostrarProductosPrecioController);
 router.get("/buscar", buscarProductoNombreDescripcionController);
-router.get("/:id", buscarProductoIdController);
 router.post("/inventario-precios",getInventarioYPrecios);
 router.get("/movimientos/:id", getMovimientosPrecio);
-
+router.get("/criticos", productosCriticosController);
+router.get("/metricas", productosConMetricasController);
+router.get("/prioritarios", productosPrioritariosController);
+router.get("/:id", buscarProductoIdController);
 
 export default router;
 

@@ -3,9 +3,16 @@ import { Producto } from "../models/producto.js";
 
 import { Movimiento_Precio  } from "../models/movimiento_precio.js";
 import { MovimientoStock} from "../models/movimiento_stock.js";
-import { Inventario } from "../models/inventario.js";
-import {  Precio } from "../models/precio.js";
-import { eq, like, or,inArray } from "drizzle-orm";
+import { Inventario } from "../models/inventario.js"; 
+import { eq, like, or,inArray ,and, sql ,lte } from "drizzle-orm";
+
+
+import { DetalleProducto  } from "../models/detalle_producto.js"; 
+import { ProductoUbicacion} from "../models/producto_ubicacion.js";
+import { EtiquetaProducto } from "../models/etiqueta_producto.js";
+import {Precio} from "../models/precio.js"
+
+
 
 // Insertar producto
 export const insertarProductoService = async (data) => {
@@ -34,6 +41,27 @@ export const mostrarProductosService = async () => {
   return await db.select().from(Producto);
 };
 
+
+export const mostrarProductosConPreciosService = async () => {
+  const resultado = await db
+    .select({
+      detalle_producto_id: ProductoUbicacion.detalle_producto_id,
+      nombre_calculado: DetalleProducto.nombre_calculado,
+      activo: DetalleProducto.activo,
+      precio_id: ProductoUbicacion.precio_id,
+      precio_venta: Precio.precio_venta,
+      tipo_cliente: Precio.tipo_cliente_id,
+      etiqueta_id: EtiquetaProducto.id,
+      alias: EtiquetaProducto.alias,
+      tipo: EtiquetaProducto.tipo
+    })
+    .from(ProductoUbicacion)
+    .leftJoin(DetalleProducto, eq(DetalleProducto.id, ProductoUbicacion.detalle_producto_id))
+    .leftJoin(Precio, eq(Precio.id, ProductoUbicacion.precio_id)) // cambio clave aquí
+    .leftJoin(EtiquetaProducto, eq(EtiquetaProducto.detalle_producto_id, DetalleProducto.id));
+ 
+  return resultado;
+};
 // Buscar por ID
 export const buscarProductoIdService = async (idproducto) => {
   const [producto] = await db.select()
@@ -95,4 +123,76 @@ export async function getHistorialDetalleProducto(detalleProductoId) {
   };
 }
 
+export const obtenerProductosCriticos = async () => {
+  return await db
+    .select({
+      id: DetalleProducto.id,
+      nombre: DetalleProducto.nombre_calculado,
+      stock_actual: Inventario.stock_actual,
+      stock_minimo: Inventario.stock_minimo,
+    })
+    .from(DetalleProducto)
+    .innerJoin(Inventario, eq(DetalleProducto.id, Inventario.detalle_producto_id))
+    .where(
+      and(
+        eq(DetalleProducto.activo, true),
+        lte(Inventario.stock_actual, Inventario.stock_minimo)
+      )
+    );
+};
+export const obtenerProductosConMetricas = async () => { 
+  return await db.execute(sql`
+    SELECT
+      dp.id AS detalle_producto_id,
+      dp.nombre_calculado AS nombre,
+      COALESCE(SUM(dv.cantidad), 0) AS total_vendido,
+      COUNT(dv.id) AS veces_vendido,
+      ROUND(AVG(DATE_PART('day', CURRENT_DATE - v.fecha))::numeric, 1) AS rotacion_prom_dias,
+      i.stock_actual,
+      GREATEST(CEIL(COALESCE(SUM(dv.cantidad), 0) / 30 * 3), 5) AS stock_minimo_recomendado
+    FROM detalle_producto dp
+    LEFT JOIN detalle_venta dv ON dp.id = dv.detalle_producto_id
+    LEFT JOIN venta v ON v.id = dv.venta_id
+    LEFT JOIN inventario i ON dp.id = i.detalle_producto_id
+    WHERE dp.activo = true
+    GROUP BY dp.id, dp.nombre_calculado, i.stock_actual
+    ORDER BY total_vendido DESC;
+  `);
+};
 
+export const obtenerProductosPrioritarios = async () => {
+  return await db.execute(
+    sql`
+      WITH ventas AS (
+        SELECT
+          dp.id,
+          dp.nombre_calculado,
+          SUM(dv.cantidad) AS total_vendida
+        FROM detalle_producto dp
+        JOIN detalle_venta dv ON dp.id = dv.detalle_producto_id
+        WHERE dp.activo = true
+        GROUP BY dp.id
+      ),
+      ventas_ordenadas AS (
+        SELECT *,
+          SUM(total_vendida) OVER (ORDER BY total_vendida DESC) AS acumulado,
+          SUM(total_vendida) OVER () AS total_general
+        FROM ventas
+      )
+      SELECT
+        vo.id,
+        vo.nombre_calculado AS nombre,
+        vo.total_vendida AS cantidad_total_vendida,
+        i.stock_actual,
+        ROUND(vo.total_vendida / NULLIF(COUNT(DISTINCT DATE_TRUNC('month', v.fecha)), 0), 2) AS rotacion_mensual,
+        GREATEST(CEIL((vo.total_vendida / NULLIF(COUNT(DISTINCT DATE_TRUNC('month', v.fecha)), 0)) * 1.3), 5) AS stock_recomendado
+      FROM ventas_ordenadas vo
+      JOIN detalle_venta dv ON dv.detalle_producto_id = vo.id
+      JOIN venta v ON v.id = dv.venta_id
+      LEFT JOIN inventario i ON i.detalle_producto_id = vo.id
+      WHERE (vo.acumulado / vo.total_general) <= 0.8
+      GROUP BY vo.id, vo.nombre_calculado, vo.total_vendida, i.stock_actual
+      ORDER BY vo.total_vendida DESC;
+    `
+  );
+};

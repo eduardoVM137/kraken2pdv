@@ -4,7 +4,11 @@ import {
     eliminarProductoService,
     mostrarProductosService,
     buscarProductoIdService,
-    buscarProductoNombreDescripcionService,obtenerPreciosInventarios,getHistorialDetalleProducto  ,
+    buscarProductoNombreDescripcionService,obtenerPreciosInventarios,getHistorialDetalleProducto  ,mostrarProductosConPreciosService,
+
+      obtenerProductosCriticos,
+  obtenerProductosConMetricas,
+  obtenerProductosPrioritarios,
   } from "../services/productoService.js";
   
   export const insertarProductoController = async (req, res, next) => {
@@ -54,7 +58,8 @@ import {
       next(error);
     }
   };
-  
+
+
   export const buscarProductoIdController = async (req, res, next) => {
     try {
       const id = Number(req.params.id);
@@ -124,3 +129,99 @@ export async function getMovimientosPrecio(req, res) {
     res.status(500).json({ message: "Error interno del servidor" });
   }
 }
+
+
+
+//panel productos 
+
+  export const mostrarProductosPrecioController = async (req, res, next) => {
+  try {
+    const productos = await mostrarProductosConPreciosService();
+
+    const productosMap = new Map();
+
+    for (const prod of productos) {
+      const {
+        detalle_producto_id,
+        nombre_calculado,
+        activo, // booleano
+        precio_id,
+        precio_venta,
+        tipo_cliente,
+        etiqueta_id,
+        alias,
+        tipo
+      } = prod;
+
+      if (!productosMap.has(detalle_producto_id)) {
+        productosMap.set(detalle_producto_id, {
+          id: detalle_producto_id, // ✅ lo renombramos a "id"
+          nombre_calculado,
+          activo: activo ? "activo" : "inactivo", // ✅ string esperado por el frontend
+          precios: [],
+          alias: [],
+        });
+      }
+
+      const actual = productosMap.get(detalle_producto_id);
+
+      if (precio_id && !actual.precios.some(p => p.precio_id === precio_id)) {
+        actual.precios.push({
+          precio_id,
+          precio_venta,
+          tipo_cliente
+        });
+      }
+
+      if (etiqueta_id && !actual.alias.some(a => a.etiqueta_id === etiqueta_id)) {
+        actual.alias.push({
+          etiqueta_id,
+          alias,
+          tipo
+        });
+      }
+    }
+
+    const data = Array.from(productosMap.values());
+
+    res.json({
+      message: "Productos encontrados",
+      data
+    });
+  } catch (error) {
+    console.error("Error en mostrarProductosConPreciosController:", error);
+    res.status(500).json({
+      message: "Error interno del servidor",
+      error: error.message
+    });
+  }
+};
+//area stock
+
+
+export const productosCriticosController = async (req, res, next) => {
+  try {
+    const data = await obtenerProductosCriticos();
+    return res.status(200).json({ message: "Productos críticos encontrados", data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const productosConMetricasController = async (req, res, next) => {
+  try {
+    const data = await obtenerProductosConMetricas();
+    return res.status(200).json({ message: "Productos con métricas encontrados", data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const productosPrioritariosController = async (req, res, next) => {
+  try {
+    const data = await obtenerProductosPrioritarios();
+    return res.status(200).json({ message: "Productos prioritarios encontrados", data });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -39,7 +39,7 @@ export async function getProductos(): Promise<Producto[]> {
 
 export async function getListaProductos(): Promise<Producto[]> {
   try {
-    const res = await fetch("http://localhost:3001/api/detalle-producto");
+    const res = await fetch("http://localhost:3001/api/producto");
 
     if (!res.ok) {
       throw new Error(`Error ${res.status} al obtener productos`);

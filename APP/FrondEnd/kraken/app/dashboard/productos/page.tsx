@@ -72,7 +72,7 @@ export default function ProductosPage() {
             <Button variant="secondary" size="sm">Expiration Control</Button>
           </div>
 
-          <ProductStats />
+<ProductStats productos={productos} />
           <ProductToolbar productos={productos} />
           <ProductTable
             productos={productos}
