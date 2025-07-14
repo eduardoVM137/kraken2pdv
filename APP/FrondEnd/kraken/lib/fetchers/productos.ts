@@ -92,3 +92,93 @@ export const transferirProductos = async (ids: number[], ubicacionId: number) =>
   if (!res.ok) throw new Error("Error al transferir productos");
   return await res.json();
 };
+export async function getProductosCriticos(): Promise<Producto[]> {
+  try {
+    const res = await fetch("http://localhost:3001/api/producto/criticos");
+
+    if (!res.ok) throw new Error(`Error ${res.status} al obtener productos críticos`);
+
+    const data = await res.json();
+
+    return Array.isArray(data.data)
+      ? data.data.map((p: any) => ({
+          ...p,
+          id: p.detalle_producto_id ?? p.id,
+          nombre_calculado: p.nombre,
+          tipoVista: "critico",
+          stock: Number(p.stock_actual ?? 0),
+          stock_minimo: Number(p.stock_minimo ?? 0),
+          precios: [],
+          alias: [],
+          sku: "",
+          precio: 0,
+          activo: "activo",
+        }))
+      : [];
+  } catch (error) {
+    console.error("❌ Error al obtener productos críticos:", error);
+    return [];
+  }
+}
+export async function getProductosPrioritarios(): Promise<Producto[]> {
+  try {
+    const res = await fetch("http://localhost:3001/api/producto/prioritarios");
+
+    if (!res.ok) throw new Error(`Error ${res.status} al obtener productos prioritarios`);
+
+    const data = await res.json();
+
+    return Array.isArray(data.data?.rows)
+      ? data.data.rows.map((p: any) => ({
+          ...p,
+          id: p.detalle_producto_id ?? p.id,
+          nombre_calculado: p.nombre,
+          tipoVista: "prioritario",
+          stock: Number(p.stock_actual ?? 0),
+          stock_minimo: Number(p.stock_minimo_recomendado ?? 0),
+          total_vendido: Number(p.total_vendido ?? 0),
+          veces_vendido: Number(p.veces_vendido ?? 0),
+          rotacion_prom_dias: Number(p.rotacion_prom_dias ?? 0),
+          precios: [],
+          alias: [],
+          sku: "",
+          precio: 0,
+          activo: "activo",
+        }))
+      : [];
+  } catch (error) {
+    console.error("❌ Error al obtener productos prioritarios:", error);
+    return [];
+  }
+}
+export async function getProductosMetricas(): Promise<Producto[]> {
+  try {
+    const res = await fetch("http://localhost:3001/api/producto/metricas");
+
+    if (!res.ok) throw new Error(`Error ${res.status} al obtener métricas`);
+
+    const data = await res.json();
+
+    return Array.isArray(data.data?.rows)
+      ? data.data.rows.map((p: any) => ({
+          ...p,
+          id: p.detalle_producto_id ?? p.id,
+          nombre_calculado: p.nombre,
+          tipoVista: "metrica",
+          stock: Number(p.stock_actual ?? 0),
+          stock_minimo: Number(p.stock_minimo_recomendado ?? 0),
+          total_vendido: Number(p.total_vendido ?? 0),
+          veces_vendido: Number(p.veces_vendido ?? 0),
+          rotacion_prom_dias: Number(p.rotacion_prom_dias ?? 0),
+          precios: [],
+          alias: [],
+          sku: "",
+          precio: 0,
+          activo: "activo",
+        }))
+      : [];
+  } catch (error) {
+    console.error("❌ Error al obtener métricas:", error);
+    return [];
+  }
+}

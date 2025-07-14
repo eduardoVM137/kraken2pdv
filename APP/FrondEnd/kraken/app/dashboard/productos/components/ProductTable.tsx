@@ -1,14 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Eye,
   Edit,
-  Trash2,
-  MoreHorizontal,
-  FileDown,
-  CheckCircle2,
-  X,
   QrCode,
   LockKeyhole,
   ScrollText,
@@ -21,18 +16,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { exportToCSV } from "@/app/utils/exportToCsv";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
-
-import {
-  activarProductos,
-  eliminarProductos,
-  transferirProductos,
+  getListaProductos,
+  getProductosCriticos,
+  getProductosPrioritarios,
+  getProductosMetricas,
 } from "@/lib/fetchers/productos";
 
 interface Producto {
@@ -45,44 +33,39 @@ interface Producto {
   precios?: { precio_id: number; precio_venta: string; tipo_cliente?: string | null }[];
   categoria?: string;
   activo: "activo" | "inactivo" | "pendiente";
+  total_vendido?: number;
+  veces_vendido?: number;
+  rotacion_prom_dias?: number;
+  stock_minimo?: number;
+  stock_minimo_recomendado?: number;
+  tipoVista?: "critico" | "prioritario" | "metrica";
 }
 
 interface ProductTableProps {
-  productos: Producto[];
   onVerAuditoria?: (detalle_producto_id: number) => void;
   onVerUbicacion?: (detalle_producto_id: number) => void;
 }
 
 export const ProductTable: React.FC<ProductTableProps> = ({
-  productos,
   onVerAuditoria,
   onVerUbicacion,
 }) => {
+  const [productos, setProductos] = useState<Producto[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [search, setSearch] = useState("");
   const [estadoFiltro, setEstadoFiltro] = useState("todos");
   const [orderBy, setOrderBy] = useState<keyof Producto | "precio">("nombre_calculado");
   const [orderDir, setOrderDir] = useState<"asc" | "desc">("asc");
   const [currentPage, setCurrentPage] = useState(1);
+  const [vistaExtra, setVistaExtra] = useState<"todos" | "criticos" | "prioritarios" | "metricas">("todos");
+  const [cache, setCache] = useState<{ [key: string]: Producto[] }>({});
+
   const rowsPerPage = 10;
 
   const toggleSelection = (id: number) => {
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id]
     );
-  };
-
-  const clearSelection = () => setSelected([]);
-
-  const selectedItems = productos.filter((p) => selected.includes(p.id));
-
-  const renderEstado = (activo: Producto["activo"]) => {
-    const map = {
-      activo: "bg-green-100 text-green-800",
-      inactivo: "bg-red-100 text-red-800",
-      pendiente: "bg-gray-200 text-gray-600",
-    };
-    return <Badge className={map[activo]}>{activo}</Badge>;
   };
 
   const handleSort = (campo: keyof Producto | "precio") => {
@@ -93,6 +76,53 @@ export const ProductTable: React.FC<ProductTableProps> = ({
       setOrderDir("asc");
     }
   };
+
+  const cargarProductos = async (tipo: typeof vistaExtra) => {
+    setVistaExtra(tipo);
+
+    const vista =
+      tipo === "metricas" ? "metrica" :
+      tipo === "prioritarios" ? "prioritario" :
+      tipo === "criticos" ? "critico" :
+      undefined;
+
+    const mapConVista = (data: Producto[]) =>
+      Array.from(
+        new Map(
+          data.map((p) => [p.id, { ...p, tipoVista: vista }])
+        ).values()
+      );
+
+    if (cache[tipo]) {
+      setProductos(mapConVista(cache[tipo]));
+      return;
+    }
+
+    try {
+      let data: Producto[] = [];
+
+      if (tipo === "todos") {
+        data = await getListaProductos();
+      } else if (tipo === "criticos") {
+        data = await getProductosCriticos();
+      } else if (tipo === "prioritarios") {
+        data = await getProductosPrioritarios();
+      } else if (tipo === "metricas") {
+        data = await getProductosMetricas();
+      }
+
+      const dataConVistaUnicos = mapConVista(data);
+
+      setProductos(dataConVistaUnicos);
+      setCache((prev) => ({ ...prev, [tipo]: dataConVistaUnicos }));
+    } catch (error) {
+      console.error("Error al cargar productos:", error);
+    }
+  };
+
+  useEffect(() => {
+    cargarProductos("todos");
+  }, []);
 
   const filteredAndSorted = useMemo(() => {
     let filtered = productos.filter((p) => {
@@ -139,9 +169,15 @@ export const ProductTable: React.FC<ProductTableProps> = ({
     currentPage * rowsPerPage
   );
 
+  const botonesVista = [
+    { label: "Más vendidos", tipo: "prioritarios" },
+    { label: "Márgenes bajos", tipo: "criticos" },
+    { label: "Métricas de rotación", tipo: "metricas" },
+    { label: "Todos", tipo: "todos" },
+  ];
+
   return (
     <div className="relative space-y-4">
-      {/* Filtros */}
       <div className="flex flex-wrap gap-4 items-center">
         <Input
           placeholder="Buscar por nombre, alias, SKU o tipo cliente..."
@@ -165,51 +201,80 @@ export const ProductTable: React.FC<ProductTableProps> = ({
           <option value="inactivo">Inactivo</option>
           <option value="pendiente">Pendiente</option>
         </select>
+
+        {botonesVista.map((b) => (
+          <Button
+            key={b.tipo}
+            variant={vistaExtra === b.tipo ? "default" : "outline"}
+            size="sm"
+            onClick={() => cargarProductos(b.tipo as any)}
+          >
+            {b.label}
+          </Button>
+        ))}
       </div>
 
-      {/* Tabla */}
       <div className="overflow-auto rounded-md border bg-white shadow">
         <table className="w-full text-sm text-left">
           <thead className="bg-muted/40">
             <tr>
               <th className="p-2 w-6"><Checkbox /></th>
-              {[
-                { label: "Nombre", campo: "nombre_calculado" },
-                { label: "Alias", campo: null },
-                { label: "Precios", campo: "precio" },
-                { label: "Estado", campo: "activo" },
-                { label: "Acciones", campo: null },
-              ].map(({ label, campo }) => (
-                <th
-                  key={label}
-                  className={`p-2 ${campo ? "cursor-pointer select-none" : ""}`}
-                  onClick={() => campo && handleSort(campo)}
-                >
-                  <div className="flex items-center gap-1">
-                    {label}
-                    {campo === orderBy && (orderDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
-                  </div>
-                </th>
-              ))}
+              <th onClick={() => handleSort("nombre_calculado")} className="p-2 cursor-pointer select-none">
+                <div className="flex items-center gap-1">
+                  Nombre
+                  {orderBy === "nombre_calculado" && (orderDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                </div>
+              </th>
+              <th className="p-2">Alias</th>
+              <th onClick={() => handleSort("precio")} className="p-2 cursor-pointer select-none">
+                <div className="flex items-center gap-1">
+                  Precios
+                  {orderBy === "precio" && (orderDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
+                </div>
+              </th>
+              {vistaExtra === "metricas" && (
+                <>
+                  <th className="p-2">Total Vendido</th>
+                  <th className="p-2">Veces Vendido</th>
+                  <th className="p-2">Rotación (días)</th>
+                </>
+              )}
+              <th className="p-2">Estado</th>
+              <th className="p-2">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {paginated.map((producto) => (
-              <tr key={producto.id} className="border-b hover:bg-muted/50">
+              <tr key={`${producto.id}-${producto.tipoVista ?? "base"}`} className="border-b hover:bg-muted/50">
                 <td className="p-2">
                   <Checkbox
                     checked={selected.includes(producto.id)}
                     onCheckedChange={() => toggleSelection(producto.id)}
                   />
                 </td>
-                <td className="p-2 font-medium">{producto.nombre_calculado}</td>
+                <td className="p-2 font-medium">
+                  {producto.nombre_calculado}
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {producto.tipoVista === "prioritario" && (
+                      <Badge variant="outline" className="text-xs text-blue-700 border-blue-700">Más vendido</Badge>
+                    )}
+                    {producto.tipoVista === "critico" && (
+                      <Badge variant="outline" className="text-xs text-orange-700 border-orange-700">Margen bajo</Badge>
+                    )}
+                    {producto.tipoVista === "metrica" && (
+                      <Badge variant="outline" className="text-xs text-yellow-700 border-yellow-700">Métrico</Badge>
+                    )}
+                    {(producto.stock_minimo ?? 0) > producto.stock && (
+                      <Badge variant="destructive" className="text-xs">Stock bajo</Badge>
+                    )}
+                  </div>
+                </td>
                 <td className="p-2">
                   {producto.alias?.length ? (
                     <div className="flex flex-col gap-1">
                       {producto.alias.map((a, i) => (
                         <span key={i} className="text-xs text-muted-foreground">
-                          {a.alias || "—"}
-                          {a.tipo ? ` (${a.tipo})` : ""}
+                          {a.alias || "—"}{a.tipo ? ` (${a.tipo})` : ""}
                         </span>
                       ))}
                     </div>
@@ -222,8 +287,7 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                     <div className="flex flex-col gap-1">
                       {producto.precios.map((p, i) => (
                         <span key={i} className="text-xs text-muted-foreground">
-                          ${Number(p.precio_venta).toFixed(2)}
-                          {p.tipo_cliente ? ` (${p.tipo_cliente})` : ""}
+                          ${Number(p.precio_venta).toFixed(2)}{p.tipo_cliente ? ` (${p.tipo_cliente})` : ""}
                         </span>
                       ))}
                     </div>
@@ -231,7 +295,26 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                     <span className="text-xs text-muted-foreground">—</span>
                   )}
                 </td>
-                <td className="p-2">{renderEstado(producto.activo)}</td>
+                {vistaExtra === "metricas" && (
+                  <>
+                    <td className="p-2">{producto.total_vendido ?? "—"}</td>
+                    <td className="p-2">{producto.veces_vendido ?? "—"}</td>
+                    <td className="p-2">
+                      {producto.rotacion_prom_dias != null
+                        ? Number(producto.rotacion_prom_dias).toFixed(2)
+                        : "—"}
+                    </td>
+                  </>
+                )}
+                <td className="p-2">
+                  <Badge className={{
+                    activo: "bg-green-100 text-green-800",
+                    inactivo: "bg-red-100 text-red-800",
+                    pendiente: "bg-gray-200 text-gray-600",
+                  }[producto.activo]}>
+                    {producto.activo}
+                  </Badge>
+                </td>
                 <td className="p-2 flex gap-1 flex-wrap">
                   <Button size="icon" variant="ghost" onClick={() => onVerAuditoria?.(producto.id)}><ScrollText className="w-4 h-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => onVerUbicacion?.(producto.id)}><MapPinIcon className="w-4 h-4" /></Button>
@@ -246,7 +329,6 @@ export const ProductTable: React.FC<ProductTableProps> = ({
         </table>
       </div>
 
-      {/* Paginación */}
       <div className="flex justify-between items-center text-sm mt-2">
         <div className="text-muted-foreground">
           Página {currentPage} de {totalPages} — {filteredAndSorted.length} resultado(s)
@@ -267,240 +349,3 @@ export const ProductTable: React.FC<ProductTableProps> = ({
     </div>
   );
 };
-
-
-
-// "use client";
-
-// import { useState } from "react";
-// import {
-//   Eye,
-//   Edit,
-//   Trash2,
-//   MoreHorizontal,
-//   FileDown,
-//   CheckCircle2,
-//   X,
-//   QrCode,
-//   LockKeyhole,
-//   ScrollText,
-// } from "lucide-react";
-
-// import { Checkbox } from "@/components/ui/checkbox";
-// import { Badge } from "@/components/ui/badge";
-// import { Button } from "@/components/ui/button";
-// import { exportToCSV } from "@/app/utils/exportToCsv";
-// import {
-//   DropdownMenu,
-//   DropdownMenuTrigger,
-//   DropdownMenuContent,
-//   DropdownMenuItem
-// } from "@/components/ui/dropdown-menu";
-
-// import {
-//   activarProductos,
-//   eliminarProductos,
-//   transferirProductos
-// } from "@/lib/fetchers/productos";
-
-// interface Producto {
-//   id: number;
-//   nombre_calculado: string;
-//   sku: string;
-//   stock: number;
-//   precio: number;
-//   categoria?: string;
-//   estado: "activo" | "inactivo" | "pendiente";
-// }
-
-// interface ProductTableProps {
-//   productos: Producto[];
-//   onVerAuditoria?: (detalle_producto_id: number) => void; // 👈 se vuelve opcional
-// }
-
-// export const ProductTable: React.FC<ProductTableProps> = ({ productos, onVerAuditoria }) => {
-//   const [selected, setSelected] = useState<number[]>([]);
-
-//   const toggleSelection = (id: number) => {
-//     setSelected((prev) =>
-//       prev.includes(id) ? prev.filter((pid) => pid !== id) : [...prev, id]
-//     );
-//   };
-
-//   const clearSelection = () => setSelected([]);
-
-//   const selectedItems = productos.filter(p => selected.includes(p.id));
-
-//   const renderEstado = (estado: Producto["estado"]) => {
-//     const map = {
-//       activo: "bg-green-100 text-green-800",
-//       inactivo: "bg-red-100 text-red-800",
-//       pendiente: "bg-gray-200 text-gray-600",
-//     };
-//     return <Badge className={map[estado]}>{estado}</Badge>;
-//   };
-
-//   return (
-//     <div className="relative">
-
-//       {/* 🔒 Barra de acciones masivas */}
-//       {selected.length > 0 && (
-//         <div className="sticky top-0 z-50 bg-white border-b p-3 flex justify-between items-center shadow">
-//           <span className="text-sm text-muted-foreground">
-//             {selected.length} producto(s) seleccionados
-//           </span>
-//           <div className="flex gap-2 flex-wrap items-center">
-//             <Button
-//               variant="outline"
-//               size="sm"
-//               onClick={() => exportToCSV(selectedItems, "productos-seleccionados.csv")}
-//             >
-//               <FileDown className="w-4 h-4 mr-1" /> Exportar
-//             </Button>
-
-//             <Button
-//               variant="secondary"
-//               size="sm"
-//               onClick={async () => {
-//                 try {
-//                   await activarProductos(selected);
-//                   alert("Productos activados");
-//                   clearSelection();
-//                 } catch (e) {
-//                   console.error(e);
-//                   alert("Error al activar");
-//                 }
-//               }}
-//             >
-//               <CheckCircle2 className="w-4 h-4 mr-1" /> Activar
-//             </Button>
-
-//             <Button
-//               variant="destructive"
-//               size="sm"
-//               onClick={async () => {
-//                 if (!confirm("¿Seguro que deseas eliminar los productos seleccionados?")) return;
-//                 try {
-//                   await eliminarProductos(selected);
-//                   alert("Productos eliminados");
-//                   clearSelection();
-//                 } catch (e) {
-//                   console.error(e);
-//                   alert("Error al eliminar");
-//                 }
-//               }}
-//             >
-//               <Trash2 className="w-4 h-4 mr-1" /> Eliminar
-//             </Button>
-
-//             {/* 🧩 Menú contextual masivo */}
-//             <DropdownMenu>
-//               <DropdownMenuTrigger asChild>
-//                 <Button size="sm" variant="outline">
-//                   Más acciones <MoreHorizontal className="w-4 h-4 ml-1" />
-//                 </Button>
-//               </DropdownMenuTrigger>
-//               <DropdownMenuContent align="end">
-//                 <DropdownMenuItem onClick={() => alert("Historial no implementado")}>
-//                   View History
-//                 </DropdownMenuItem>
-//                 <DropdownMenuItem onClick={() => alert("Gestión de stock no implementada")}>
-//                   Manage Stock
-//                 </DropdownMenuItem>
-//                 <DropdownMenuItem onClick={() => alert("Transferencia masiva no implementada")}>
-//                   Transfer
-//                 </DropdownMenuItem>
-//                 <DropdownMenuItem onClick={() => alert("No disponible todavía")}>
-//                   Unpublish
-//                 </DropdownMenuItem>
-//                 <DropdownMenuItem onClick={() => alert("Sin algoritmo aún")}>
-//                   Best Price Setting
-//                 </DropdownMenuItem>
-//                 <DropdownMenuItem onClick={() => alert("Función en desarrollo")}>
-//                   Analyze
-//                 </DropdownMenuItem>
-//               </DropdownMenuContent>
-//             </DropdownMenu>
-
-//             <Button size="sm" variant="ghost" onClick={clearSelection}>
-//               <X className="w-4 h-4" />
-//             </Button>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* 📦 Tabla de productos */}
-//       <div className="overflow-auto rounded-md border bg-white shadow">
-//         <table className="w-full text-sm text-left">
-//           <thead className="bg-muted/40">
-//             <tr>
-//               <th className="p-2 w-6"><Checkbox /></th>
-//               <th className="p-2">Nombre</th>
-//               <th className="p-2">SKU</th>
-//               <th className="p-2">Precio</th>
-//               <th className="p-2">Estado</th>
-//               <th className="p-2">Acciones</th>
-//             </tr>
-//           </thead>
-//           <tbody>
-//             {productos.map((producto) => (
-//               <tr key={producto.id} className="border-b hover:bg-muted/50">
-//                 <td className="p-2">
-//                   <Checkbox
-//                     checked={selected.includes(producto.id)}
-//                     onCheckedChange={() => toggleSelection(producto.id)}
-//                   />
-//                 </td>
-//                 <td className="p-2 font-medium">{producto.nombre_calculado}</td>
-//                 <td className="p-2">{producto.sku}</td>
-//                 <td className="p-2">${Number(producto.precio).toFixed(2)}</td>
-//                 <td className="p-2">{renderEstado(producto.estado)}</td>
-//                 <td className="p-2 flex gap-1 flex-wrap">
-//                   {/* 👁 Ver historial */}
-//                   <Button
-//                     size="icon"
-//                     variant="ghost"
-//                     title="Ver historial de movimientos"
-//                     onClick={() => onVerAuditoria?.(producto.id)}
-//                   >
-//                     <ScrollText className="w-4 h-4" />
-//                   </Button>
-
-//                   <Button size="icon" variant="ghost" title="Ver">
-//                     <Eye className="w-4 h-4" />
-//                   </Button>
-//                   <Button size="icon" variant="ghost" title="Editar">
-//                     <Edit className="w-4 h-4" />
-//                   </Button>
-//                   <Button size="icon" variant="ghost" title="QR">
-//                     <QrCode className="w-4 h-4" />
-//                   </Button>
-//                   <Button size="icon" variant="ghost" title="Bloquear">
-//                     <LockKeyhole className="w-4 h-4" />
-//                   </Button>
-
-//                   {/* Menú por producto */}
-//                   <DropdownMenu>
-//                     <DropdownMenuTrigger asChild>
-//                       <Button size="icon" variant="ghost">
-//                         <MoreHorizontal className="w-4 h-4" />
-//                       </Button>
-//                     </DropdownMenuTrigger>
-//                     <DropdownMenuContent>
-//                       <DropdownMenuItem onClick={() => onVerAuditoria?.(producto.id)}>
-//                         Ver Auditoría
-//                       </DropdownMenuItem>
-//                       <DropdownMenuItem>Editar</DropdownMenuItem>
-//                       <DropdownMenuItem>Transferir</DropdownMenuItem>
-//                       <DropdownMenuItem>Eliminar</DropdownMenuItem>
-//                     </DropdownMenuContent>
-//                   </DropdownMenu>
-//                 </td>
-//               </tr>
-//             ))}
-//           </tbody>
-//         </table>
-//       </div>
-//     </div>
-//   );
-// };

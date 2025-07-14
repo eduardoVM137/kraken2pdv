@@ -7,8 +7,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
-import { ProductStats } from "./components/ProductStats";
-import { ProductToolbar } from "./components/ProductToolbar";
+import { ProductStats } from "./components/ProductStats"; 
 import { ProductTable } from "./components/ProductTable";
 import HistorialAuditoria from "./components/HistorialAuditoria";
 import DetalleUbicacion from "./components/DetalleUbicacion";
@@ -64,16 +63,10 @@ export default function ProductosPage() {
         </TabsList>
 
         <TabsContent value="catalogo" className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" size="sm">Top Sellers</Button>
-            <Button variant="secondary" size="sm">Low Margin Alerts</Button>
-            <Button variant="secondary" size="sm">Inactive Log</Button>
-            <Button variant="secondary" size="sm">Enable Online Sales</Button>
-            <Button variant="secondary" size="sm">Expiration Control</Button>
-          </div>
+{/* Los botones para filtrar productos están dentro de ProductTable ahora */}
 
 <ProductStats productos={productos} />
-          <ProductToolbar productos={productos} />
+      
           <ProductTable
             productos={productos}
             onVerAuditoria={verAuditoria}
