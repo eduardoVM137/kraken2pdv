@@ -4,7 +4,7 @@ import {
   editarDetalleProductoController,
   eliminarDetalleProductoController,
   mostrarDetalleProductosController,
-  buscarDetalleProductoIdController,buscarDetalleProductoCompletoController,buscarProductoGeneralController,detalleProductoExpandidoController
+  buscarDetalleProductoIdController,obtenerDetalleProducto,buscarProductoGeneralController,detalleProductoExpandidoController
 } from "../controllers/detalle_ProductoController.js";
 import validateRequest from "../middlewares/validateRequest.js";
 import { detalleProductoSchema } from "../middlewares/validarDetalleProducto.js";
@@ -31,7 +31,7 @@ router.get("/buscar-general/:codigo", buscarProductoGeneralController);
 router.get("/detalle-expandido/:id", detalleProductoExpandidoController);
 
 // Buscar un detalle exacto del producto (ej. para editarlo)
-router.get("/:id", buscarDetalleProductoCompletoController);
+router.get("/:id", obtenerDetalleProducto);
 
 
 // Actualizar

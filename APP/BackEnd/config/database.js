@@ -14,6 +14,7 @@ const pool = new Pool({
 
 // Instancia de Drizzle con el pool y el schema
 const db = drizzle(pool, { schema });
+console.log("Tablas registradas:", Object.keys(db.query));
 
 export { pool, db };
 

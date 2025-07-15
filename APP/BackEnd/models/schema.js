@@ -43,4 +43,4 @@ export * from './ubicacion_fisica.js';
 //export * from './usuarioRol.js';
 export * from './venta.js';
 //export * from './acceso.js'; si
-//export * from './restriccionUsuario.js';
+//export * from './restriccionUsuario.js';  

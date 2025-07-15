@@ -1,4 +1,6 @@
 import { pgTable, serial, integer, numeric, timestamp, boolean, varchar, smallint } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import { DetalleProducto } from "./detalle_producto.js";
 
 export const Precio = pgTable("precio", {
   id: serial("id").primaryKey(),
@@ -16,3 +18,10 @@ export const Precio = pgTable("precio", {
   descripcion: varchar("descripcion", { length: 150 }),
   presentacion_id: integer("presentacion_id"),
 });
+
+export const PrecioRelations = relations(Precio, ({ one }) => ({
+  detalle_producto: one(DetalleProducto, {
+    fields: [Precio.detalle_producto_id],
+    references: [DetalleProducto.id],
+  }),
+}));

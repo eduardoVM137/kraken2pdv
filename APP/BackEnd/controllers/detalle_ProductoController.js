@@ -7,6 +7,7 @@ import {
   eliminarDetalleProductoService,
   mostrarDetalleProductosService,
   buscarDetalleProductoIdService,
+  getDetalleProductoById ,
 } from "../services/detalle_ProductoService.js";
 import { insertarMovimientoStockServiceTx } from "../services/movimientoStockService.js";
 import { insertarStateServiceTx } from "../services/stateService.js"; 
@@ -601,6 +602,22 @@ export const detalleProductoExpandidoController = async (req, res, next) => {
   } catch (error) {
     next(error);
   }};
+
+
+  export const obtenerDetalleProducto = async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+
+    const data = await getDetalleProductoById(id);
+    if (!data) return res.status(404).json({ message: "Producto no encontrado" });
+
+    res.json(data);
+  } catch (err) {
+    console.error("Error al obtener detalle del producto:", err);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+};
 
 // {
 //   "producto_id": 1,

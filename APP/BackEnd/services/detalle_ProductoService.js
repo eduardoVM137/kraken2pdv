@@ -1,6 +1,9 @@
 import { db } from "../config/database.js";
 import { DetalleProducto } from "../models/detalle_producto.js";
 import { eq } from "drizzle-orm";
+
+   
+import { DetalleAtributo } from "../models/detalle_atributo.js";
 // 🔹 Insertar
 export const insertarDetalleProductoService = async (data) => {
   try {
@@ -86,4 +89,47 @@ export const buscarDetalleProductoIdService = async (id) => {
     .from(DetalleProducto)
     .where(eq(DetalleProducto.id, id))
     .then(res => res[0]);
+};
+
+
+
+ 
+
+ 
+
+export const getDetalleProductoById = async (id) => {
+  try {
+    const detalle = await db.query.DetalleProducto.findFirst({
+      where: eq(DetalleProducto.id, id),
+      with: {
+        producto: true,
+        atributo: true,
+        state: true,
+        componentes_padre: true,
+        componentes_hijo: true,
+        precios: true,
+        inventarios: true,
+        presentaciones: true,
+        etiquetas: true,
+        multimedia: true,
+        ubicaciones: true,
+      },
+    });
+
+    if (!detalle) return null; 
+    // Cargar los detalle_atributo por separado usando atributo_id
+    const detalle_atributo = detalle.atributo_id
+      ? await db.query.DetalleAtributo.findMany({
+          where: eq(DetalleAtributo.id_atributo, detalle.atributo_id),
+        })
+      : [];
+
+    return {
+      ...detalle,
+      detalle_atributo,
+    };
+  } catch (error) {
+    console.error("Error al obtener detalle del producto:", error);
+    throw new Error("No se pudo obtener el detalle del producto");
+  }
 };
