@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
-import { zodResolver }            from "@hookform/resolvers/zod";
-import { z }                      from "zod";
-import { Button }                 from "@/components/ui/button";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { toast } from "sonner"; 
 import {
   Tabs,
   TabsContent,
@@ -16,124 +17,122 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Button } from "@/components/ui/button";
 
-/* Secciones */
-import { SeccionBasica }         from "./SeccionBasica";
-import { SeccionAtributos }      from "./SeccionAtributos";
+import { SeccionBasica } from "./SeccionBasica";
+import { SeccionAtributos } from "./SeccionAtributos";
 import { SeccionPresentaciones } from "./SeccionPresentaciones";
-import { SeccionAlias }          from "./SeccionAlias";
-import { SeccionFotos }          from "./SeccionFotos";
-import { SeccionUbicaciones }    from "./SeccionUbicaciones";
-import { SeccionComponentes }    from "./SeccionComponentes";
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
-/* ─────────────────────── Zod schema ─────────────────────── */
-const productoSchema = z.object({
-  producto_id:      z.coerce.number(),
-  medida:           z.coerce.number(),
-  unidad_medida:    z.string(),
-  marca_id:         z.string(),
-  descripcion:      z.string().optional(),
-  nombre_calculado: z.string().min(1, "Nombre calculado requerido"),
-  activo:           z.boolean().default(true),
+import { SeccionAlias } from "./SeccionAlias";
+import { SeccionFotos } from "./SeccionFotos";
+import { SeccionUbicaciones } from "./SeccionUbicaciones";
+import { SeccionComponentes } from "./SeccionComponentes";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
+
+const productoSchema = z.object({
+  producto_id: z.coerce.number(),
+  medida: z.coerce.number(),
+  unidad_medida: z.string(),
+  marca_id: z.string(),
+  descripcion: z.string().optional(),
+  nombre_calculado: z.string(),
+  activo: z.boolean().default(true),
   atributo: z.object({ nombre: z.string() }).optional(),
   detalles_atributo: z.array(z.object({ valor: z.string() })).optional(),
-
-  componentes: z
-    .array(
-      z.object({
-        detalle_producto_padre_id: z.coerce.number(),
-        cantidad: z.coerce.number(),
-      })
-    )
-    .optional(),
-
-  /* ── presentaciones & alias ── */
-  presentaciones: z
-    .array(
-      z.object({
-        idVirtualPresentacion: z.string(),
-        nombre:   z.string(),
-        cantidad: z.coerce.number(),
-        descripcion: z.string().optional(),
-      })
-    )
-    .optional(),
-
-  etiquetas: z
-    .array(
-      z.object({
-        tipo: z.string().optional(),
-        alias: z.string(),
-        visible: z.boolean().optional(),
-        idVirtualPresentacion: z.string().optional(),
-      })
-    )
-    .optional(),
-
+  componentes: z.array(z.object({
+    detalle_producto_padre_id: z.coerce.number(),
+    cantidad: z.coerce.number(),
+  })).optional(),
+  presentaciones: z.array(z.object({
+    idVirtualPresentacion: z.string(),
+    nombre: z.string(),
+    cantidad: z.coerce.number(),
+    descripcion: z.string().optional(),
+  })).optional(),
+  etiquetas: z.array(z.object({
+    tipo: z.string().optional(),
+    alias: z.string(),
+    visible: z.boolean().optional(),
+    idVirtualPresentacion: z.string().optional(),
+  })).optional(),
   fotos: z.array(z.string().url()).optional(),
-
-  /* ── Inventarios ── */
-  inventarios: z
-    .array(
-      z.object({
-        idVirtual: z.string(),
-        stock_actual: z.coerce.number(),
-        stock_minimo: z.coerce.number(),
-        precio_costo: z.coerce.number(),
-        ubicacion_fisica_id: z.coerce.number(),
-        proveedor_id: z.coerce.number(),            // ← obligatorio
-        celdas: z
-          .array(
-            z.object({
-              contenedor_fisico_id: z.coerce.number(),
-              celda_id: z.coerce.number(),
-              cantidad: z.coerce.number(),
-            })
-          )
-          .optional(),
-      })
-    )
-    .optional(),
-
-  /* ── Precios ── */
-  precios: z
-    .array(
-      z.object({
-        idVirtual: z.string(),
-        precio_venta: z.coerce.number(),
-        tipo_cliente_id: z.coerce.number(),
-        vigente: z.boolean().default(true),
-        fecha_inicio: z.string().optional(),
-        fecha_fin: z.string().optional(),
-        cliente_id: z.coerce.number().optional(),
-        cantidad_minima: z.coerce.number().optional(),
-        precio_base: z.coerce.number().optional(),
-        prioridad: z.coerce.number().optional(),
-        descripcion: z.string().optional(),
-        idVirtualPresentacion: z.string().optional(),
-      })
-    )
-    .optional(),
-
-  /* ── Ubicaciones ── */
-  producto_ubicaciones: z
-    .array(
-      z.object({
-        ubicacion_fisica_id: z.coerce.number(),
-        negocio_id: z.coerce.number(),
-        idVirtualInventario: z.string().optional(),
-        idVirtualPrecio: z.string().optional(),
-        compartir: z.boolean().optional(),
-      })
-    )
-    .optional(),
+  inventarios: z.array(z.object({
+    idVirtual: z.string(),
+    stock_actual: z.coerce.number(),
+    stock_minimo: z.coerce.number(),
+    precio_costo: z.coerce.number(),
+    ubicacion_fisica_id: z.coerce.number(),
+    proveedor_id: z.coerce.number(),
+    celdas: z.array(z.object({
+      contenedor_fisico_id: z.coerce.number(),
+      celda_id: z.coerce.number(),
+      cantidad: z.coerce.number(),
+    })).optional(),
+  })).optional(),
+  precios: z.array(z.object({
+    idVirtual: z.string(),
+    precio_venta: z.coerce.number(),
+    tipo_cliente_id: z.coerce.number(),
+    vigente: z.boolean().default(true),
+    fecha_inicio: z.string().optional(),
+    fecha_fin: z.string().optional(),
+    cliente_id: z.coerce.number().optional(),
+    cantidad_minima: z.coerce.number().optional(),
+    precio_base: z.coerce.number().optional(),
+    prioridad: z.coerce.number().optional(),
+    descripcion: z.string().optional(),
+    idVirtualPresentacion: z.string().optional(),
+  })).optional(),
+  producto_ubicaciones: z.array(z.object({
+    ubicacion_fisica_id: z.coerce.number(),
+    negocio_id: z.coerce.number(),
+    idVirtualInventario: z.string().optional(),
+    idVirtualPrecio: z.string().optional(),
+    compartir: z.boolean().optional(),
+  })).optional(),
 });
 
 export type ProductoFormData = z.infer<typeof productoSchema>;
 
-/* ─────────────────────── Componente ─────────────────────── */
-export const FormularioProducto = () => {
+const obtenerCambios = (valores: any, dirtyFields: any): any => {
+  const result: any = {};
+  for (const key in dirtyFields) {
+    if (typeof dirtyFields[key] === "object" && !Array.isArray(dirtyFields[key])) {
+      result[key] = obtenerCambios(valores[key], dirtyFields[key]);
+    } else {
+      result[key] = valores[key];
+    }
+  }
+  return result;
+};
+
+const transformarDataAlFormulario = (data: any): ProductoFormData => ({
+  producto_id: data.producto_id,
+  marca_id: data.marca_id,
+  medida: Number(data.medida),
+  unidad_medida: data.unidad_medida,
+  descripcion: data.descripcion,
+  nombre_calculado: data.nombre_calculado,
+  activo: data.activo,
+  fotos: data.multimedia?.map((m: any) => m.url) ?? [],
+  atributo: data.atributo ?? undefined,
+  detalles_atributo: data.detalle_atributo ?? [],
+  componentes: data.componentes_hijo ?? [],
+  presentaciones: data.presentaciones?.map(p => ({ ...p, idVirtualPresentacion: `pres_${p.id}` })) ?? [],
+  etiquetas: data.etiquetas ?? [],
+  precios: data.precios?.map(p => ({ ...p, idVirtual: `price_${p.id}` })) ?? [],
+  inventarios: data.inventarios?.map(i => ({
+    ...i,
+    idVirtual: `inv_${i.id}`,
+  })) ?? [],
+  producto_ubicaciones: data.ubicaciones?.map((u: any) => ({
+    ...u,
+    idVirtualInventario: `inv_${u.inventario_id}`,
+    idVirtualPrecio: `price_${u.precio_id}`,
+  })) ?? [],
+});
+
+export const FormularioProducto = ({ id }: { id?: number }) => {
   const form = useForm<ProductoFormData>({
     resolver: zodResolver(productoSchema),
     defaultValues: {
@@ -149,88 +148,78 @@ export const FormularioProducto = () => {
     },
   });
 
-  /* -------- envío -------- */
-  const onSubmit = async (values: ProductoFormData) => {
-    const payload = {
-      ...values,
-      /* compresión simple de arrays si quieres filtrar nulos: */
-      producto_ubicaciones: values.producto_ubicaciones?.map((u) => ({
-        ubicacion_fisica_id: u.ubicacion_fisica_id,
-        negocio_id: u.negocio_id,
-        ...(u.idVirtualInventario && { idVirtualInventario: u.idVirtualInventario }),
-        ...(u.idVirtualPrecio     && { idVirtualPrecio:     u.idVirtualPrecio }),
-        ...(typeof u.compartir === "boolean" && { compartir: u.compartir }),
-      })),
+  const { reset, getValues, formState, handleSubmit } = form;
+  const [loading, setLoading] = useState(!!id);
 
-      inventarios: values.inventarios?.map((inv) => ({
-        ...inv,                                 // incluye proveedor_id
-        celdas: (inv.celdas || []).map((c) => ({
-          contenedor_fisico_id: c.contenedor_fisico_id,
-          celda_id: c.celda_id,
-          cantidad: c.cantidad,
-        })),
-      })),
-
-      precios: values.precios?.map((p) => ({ ...p })),
+  useEffect(() => {
+    if (!id) return;
+    const load = async () => {
+      const res = await fetch(`${API_BASE}/api/detalle-producto/${id}`);
+      const data = await res.json();
+      const parsed = transformarDataAlFormulario(data);
+      reset(parsed);
+      setLoading(false);
     };
+    load();
+  }, [id, reset]);
+const onSubmit = async (values: ProductoFormData) => {
+  const cambios = id ? obtenerCambios(values, formState.dirtyFields) : values;
 
-    console.log("📤 JSON enviado:", payload);
+  try {
+    const endpoint = id
+      ? `${API_BASE}/api/detalle-producto/editar/${id}`  // usa este nuevo endpoint
+      : `${API_BASE}/api/detalle-producto`;
 
-    try {
-      await fetch("http://localhost:3001/api/detalle-producto", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      alert("✅ Producto registrado correctamente");
-    } catch (err) {
-      console.error("❌ Error al registrar:", err);
-    }
-  };
+    const res = await fetch(endpoint, {
+      method: id ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cambios),
+    });
 
-  /* ─────────── UI ─────────── */
+    if (!res.ok) throw new Error("Fallo la petición");
+
+    toast.success(id ? "Producto actualizado correctamente" : "Producto creado correctamente");
+
+    if (!id) reset(); // limpiar formulario si es nuevo
+  } catch (err) {
+    toast.error("Error al guardar el producto");
+    console.error(err);
+  }
+};
+
+
+  if (loading) return <p className="text-sm">Cargando producto...</p>;
+
   return (
     <FormProvider {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <Tabs defaultValue="datos" className="w-full">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <Tabs defaultValue="datos">
           <TabsList className="border-b w-full flex gap-2">
-            <TabsTrigger value="datos">Datos básicos</TabsTrigger>
-            <TabsTrigger value="componentes">Componentes</TabsTrigger>
+            <TabsTrigger value="datos">📝 Datos</TabsTrigger>
+            <TabsTrigger value="componentes">🧩 Componentes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="datos">
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-4">
                 <SeccionFotos />
-
                 <Accordion type="single" collapsible>
                   <AccordionItem value="atributos">
-                    <AccordionTrigger>🧩 Atributos del producto</AccordionTrigger>
-                    <AccordionContent>
-                      <SeccionAtributos />
-                    </AccordionContent>
+                    <AccordionTrigger>🔠 Atributos</AccordionTrigger>
+                    <AccordionContent><SeccionAtributos /></AccordionContent>
                   </AccordionItem>
-
-                  <AccordionItem value="present">
+                  <AccordionItem value="presentaciones">
                     <AccordionTrigger>📦 Presentaciones</AccordionTrigger>
-                    <AccordionContent>
-                      <SeccionPresentaciones />
-                    </AccordionContent>
+                    <AccordionContent><SeccionPresentaciones /></AccordionContent>
                   </AccordionItem>
-
                   <AccordionItem value="alias">
-                    <AccordionTrigger>🏷️ Alias y códigos</AccordionTrigger>
-                    <AccordionContent>
-                      <SeccionAlias />
-                    </AccordionContent>
+                    <AccordionTrigger>🏷️ Alias / Códigos</AccordionTrigger>
+                    <AccordionContent><SeccionAlias /></AccordionContent>
                   </AccordionItem>
                 </Accordion>
               </div>
-
               <div className="space-y-4">
                 <SeccionBasica />
-
-                {/* Ubicaciones incluye Inventarios / Precios internos */}
                 <SeccionUbicaciones />
               </div>
             </div>
@@ -241,7 +230,9 @@ export const FormularioProducto = () => {
           </TabsContent>
         </Tabs>
 
-        <Button type="submit">Guardar producto</Button>
+        <Button type="submit">
+          {id ? "💾 Guardar cambios" : "➕ Crear producto"}
+        </Button>
       </form>
     </FormProvider>
   );

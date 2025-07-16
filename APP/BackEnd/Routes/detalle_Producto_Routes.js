@@ -35,12 +35,8 @@ router.get("/:id", obtenerDetalleProducto);
 
 
 // Actualizar
-router.put(
-  "/:id",
-  authMiddleware,
-  validateRequest(detalleProductoSchema),
-  editarDetalleProductoController
-);
+router.put("/editar/:id", editarDetalleProductoController); // ✅ requerido para formulario
+
 
 // Eliminar
 router.delete("/:id", authMiddleware, eliminarDetalleProductoController);

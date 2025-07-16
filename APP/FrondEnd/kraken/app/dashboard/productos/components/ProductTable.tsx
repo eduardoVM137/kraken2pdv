@@ -22,6 +22,7 @@ import {
   getProductosPrioritarios,
   getProductosMetricas,
 } from "@/lib/fetchers/productos";
+import { useRouter } from "next/navigation";
 
 interface Producto {
   id: number;
@@ -50,6 +51,8 @@ export const ProductTable: React.FC<ProductTableProps> = ({
   onVerAuditoria,
   onVerUbicacion,
 }) => {
+    const router = useRouter();
+
   const [productos, setProductos] = useState<Producto[]>([]);
   const [selected, setSelected] = useState<number[]>([]);
   const [search, setSearch] = useState("");
@@ -319,7 +322,13 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                   <Button size="icon" variant="ghost" onClick={() => onVerAuditoria?.(producto.id)}><ScrollText className="w-4 h-4" /></Button>
                   <Button size="icon" variant="ghost" onClick={() => onVerUbicacion?.(producto.id)}><MapPinIcon className="w-4 h-4" /></Button>
                   <Button size="icon" variant="ghost"><Eye className="w-4 h-4" /></Button>
-                  <Button size="icon" variant="ghost"><Edit className="w-4 h-4" /></Button>
+<Button
+  size="icon"
+  variant="ghost"
+  onClick={() => router.push(`/dashboard/productos/editar/${producto.id}`)}
+>
+  <Edit className="w-4 h-4" />
+</Button>
                   <Button size="icon" variant="ghost"><QrCode className="w-4 h-4" /></Button>
                   <Button size="icon" variant="ghost"><LockKeyhole className="w-4 h-4" /></Button>
                 </td>

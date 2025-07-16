@@ -1,5 +1,11 @@
-// ProductoCard.tsx
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 
 interface Props {
   producto: any;
@@ -14,8 +20,23 @@ interface Props {
 
 export default function ProductoCard({ producto, onAgregar }: Props) {
   const [seleccionada, setSeleccionada] = useState(
-    producto.presentaciones[0] ?? { cantidad_presentacion: 1, nombre_presentacion: "", presentacion_id: undefined }
+    producto.presentaciones?.[0] ?? {
+      cantidad_presentacion: 1,
+      nombre_presentacion: "",
+      presentacion_id: undefined,
+    }
   );
+
+  const seleccionarPrecio = () => {
+    if (!producto.precios?.length) return 0;
+    const conPresentacion = producto.precios.find(
+      (p: any) => p.presentacion_id === seleccionada.presentacion_id
+    );
+    const sinPresentacion = producto.precios.find(
+      (p: any) => p.presentacion_id == null
+    );
+    return parseFloat(conPresentacion?.precio_venta || sinPresentacion?.precio_venta || 0);
+  };
 
   const agregar = () => {
     const cantidad = seleccionada?.cantidad_presentacion || 1;
@@ -32,66 +53,62 @@ export default function ProductoCard({ producto, onAgregar }: Props) {
     });
   };
 
-  const seleccionarPrecio = () => {
-    if (!producto.precios?.length) return 0;
-    const conPresentacion = producto.precios.find(
-      (p: any) => p.presentacion_id === seleccionada.presentacion_id
-    );
-    const sinPresentacion = producto.precios.find((p: any) => p.presentacion_id == null);
-    return conPresentacion?.precio_venta || sinPresentacion?.precio_venta || 0;
-  };
-
   return (
     <div
-      className="border rounded-md p-4 bg-white shadow flex flex-col justify-between cursor-pointer hover:ring-2 ring-blue-500"
+      className="border rounded-lg p-3 bg-white shadow flex flex-col justify-between cursor-pointer hover:ring-2 ring-blue-500 transition-all h-[260px] w-[230px]"
       onClick={(e) => {
         if (!(e.target as HTMLElement).closest("button")) agregar();
       }}
     >
-      <img
-        src={producto.fotos?.[0] || "/default-product.jpg"}
-        alt={producto.nombre_calculado}
-        className="h-32 w-full object-contain mb-2"
-      />
-      <h3 className="font-semibold text-center line-clamp-2">
-        {producto.nombre_calculado}
-      </h3>
-
-      <div className="text-sm text-center my-1">
-        Precio: <strong>${seleccionarPrecio()}</strong> <br />
-        Stock: <strong>{producto.stock_total}</strong>
+      {/* Imagen generosa */}
+      <div className="flex justify-center items-center">
+        <img
+          src={producto.fotos?.[0] || "/default-product.jpg"}
+          alt={producto.nombre_calculado}
+          className="h-28 w-28 object-contain"
+        />
       </div>
 
-      {producto.presentaciones?.length > 0 && (
-        <div className="border rounded p-1 max-h-28 overflow-y-auto mt-2 text-sm">
-          {producto.presentaciones.map((p: any) => (
-            <button
-              key={p.presentacion_id}
-              className={`block w-full px-2 py-1 rounded text-left ${
-                seleccionada.presentacion_id === p.presentacion_id
-                  ? "bg-blue-100 font-bold"
-                  : "hover:bg-gray-100"
-              }`}
-              onClick={(e) => {
-                e.stopPropagation();
-                setSeleccionada(p);
-              }}
-            >
-              {p.nombre_presentacion} x{p.cantidad_presentacion}
-            </button>
+      {/* Información */}
+      <div className="flex flex-col items-center mt-1 text-sm">
+        <h3 className="font-semibold text-center text-[14px] leading-tight line-clamp-2">
+          {producto.nombre_calculado}
+        </h3>
+        <p className="text-[14px] mt-1">
+          Precio: <strong>${seleccionarPrecio().toFixed(2)}</strong>
+        </p>
+        <p className="text-[12px] text-muted-foreground">Stock: {producto.stock_total}</p>
+      </div>
+
+      {/* Presentaciones (tamaño ideal) */}
+      <TooltipProvider>
+        <div className="flex gap-1 overflow-x-auto mt-2 px-1">
+          {producto.presentaciones?.map((p: any) => (
+            <Tooltip key={p.presentacion_id}>
+              <TooltipTrigger asChild>
+                <Button
+                  variant={
+                    seleccionada.presentacion_id === p.presentacion_id
+                      ? "default"
+                      : "outline"
+                  }
+                  size="sm"
+                  className="text-[11px] px-3 py-1 h-7 min-w-[75px] truncate"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSeleccionada(p);
+                  }}
+                >
+                  {p.nombre_presentacion}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{p.nombre_presentacion}</p>
+              </TooltipContent>
+            </Tooltip>
           ))}
         </div>
-      )}
-
-      <button
-        className="mt-2 bg-green-600 text-white py-1 rounded hover:bg-green-700"
-        onClick={(e) => {
-          e.stopPropagation();
-          agregar();
-        }}
-      >
-        Agregar
-      </button>
+      </TooltipProvider>
     </div>
   );
 }

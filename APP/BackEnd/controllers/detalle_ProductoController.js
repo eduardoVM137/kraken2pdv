@@ -8,6 +8,7 @@ import {
   mostrarDetalleProductosService,
   buscarDetalleProductoIdService,
   getDetalleProductoById ,
+  eliminarRelacionesDetalleProductoTx,editarDetalleProductoServiceTx,
 } from "../services/detalle_ProductoService.js";
 import { insertarMovimientoStockServiceTx } from "../services/movimientoStockService.js";
 import { insertarStateServiceTx } from "../services/stateService.js"; 
@@ -293,10 +294,84 @@ export const insertarDetalleProductoController = async (req, res, next) => {
 
 
 
-
-
-
 export const editarDetalleProductoController = async (req, res, next) => {
+  try {
+    const detalleId = parseInt(req.params.id);
+    if (isNaN(detalleId)) return res.status(400).json({ message: "ID inválido" });
+
+    const {
+      atributo = {},
+      detalles_atributo = [],
+      componentes = [],
+      presentaciones = [],
+      etiquetas = [],
+      inventarios = [],
+      precios = [],
+      producto_ubicaciones = [],
+      fotos = [],
+      ...resto
+    } = req.body;
+
+    const resultado = await db.transaction(async (tx) => {
+      // Eliminar datos previos relacionados
+      await eliminarRelacionesDetalleProductoTx(tx, detalleId);
+
+      // Reinsertar estado (opcional: podrías también actualizar el existente si lo deseas)
+      const state = await insertarStateServiceTx(tx, { tabla_afectada: "detalle_producto" });
+      if (!state?.id) throw new Error("No se pudo crear el nuevo estado");
+
+      // Actualizar o insertar atributo
+      let atributo_id = null;
+      if (atributo?.nombre) {
+        const atributoInsertado = await insertarAtributoServiceTx(tx, atributo);
+        if (!atributoInsertado?.id) throw new Error("No se pudo actualizar/insetar atributo");
+        atributo_id = atributoInsertado.id;
+
+        if (detalles_atributo.length > 0) {
+          const detalles = detalles_atributo.map(det => ({ ...det, id_atributo: atributo_id }));
+          await insertarDetalleAtributosServiceTx(tx, detalles);
+        }
+      }
+
+      // Actualizar el detalle_producto
+      const detalle = await editarDetalleProductoServiceTx(tx, {
+        ...resto,
+        id: detalleId,
+        atributo_id,
+        state_id: state.id,
+      });
+
+      if (!detalle?.id) throw new Error("No se pudo actualizar el detalle_producto");
+
+      // Insertar nuevos componentes
+      if (componentes.length > 0) {
+        const lista = componentes.map(c => ({
+          detalle_producto_hijo_id: detalle.id,
+          detalle_producto_padre_id: c.detalle_producto_padre_id,
+          cantidad: c.cantidad,
+        }));
+        await insertarComponenteProductoTx(tx, lista);
+      }
+
+      const mapaVirtual = await procesarPresentacionesYAlias(tx, presentaciones, etiquetas, detalle.id);
+      const inventarioMap = await procesarInventarios(tx, inventarios, detalle, state, req);
+      const precioMap = await procesarPrecios(tx, precios, detalle, mapaVirtual);
+      await procesarProductoUbicacionFlexible(tx, producto_ubicaciones, detalle.id, inventarioMap, precioMap, req);
+      await procesarMultimedia(tx, fotos, detalle.id);
+
+      return detalle;
+    });
+
+    return res.status(200).json({ message: "Detalle producto actualizado correctamente", data: resultado });
+  } catch (error) {
+    console.error("Error al editar detalle_producto:", error);
+    next(error);
+  }
+};
+
+
+
+export const editar1DetalleProductoController = async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
