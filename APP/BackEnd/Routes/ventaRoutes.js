@@ -3,12 +3,14 @@ import {
   mostrarVentasController,
   insertarVentaController,
   editarVentaController,
-  eliminarVentaController,mostrarProductosVentaController
+  eliminarVentaController,mostrarProductosVentaController,buscarProductosPorAliasController
 } from "../controllers/ventaController.js";
 
 const router = express.Router();
 
 router.get("/productos", mostrarProductosVentaController);
+router.get("/productos-alias", buscarProductosPorAliasController);
+
 router.get("/", mostrarVentasController);
 router.post("/", insertarVentaController);
 router.put("/:id", editarVentaController);

@@ -36,6 +36,12 @@ export async function getProductos(): Promise<Producto[]> {
   }
 }
 
+export async function buscarProductosPorAlias(busqueda: string): Promise<DetalleProducto[]> {
+  const res = await fetch(`http://localhost:3001/api/ventas/productos-alias?busqueda=${encodeURIComponent(busqueda)}`);
+  const data = await res.json();
+  return Array.isArray(data.data) ? data.data : [];
+}
+
 
 export async function getListaProductos(): Promise<Producto[]> {
   try {

@@ -1,55 +1,117 @@
 "use client";
+
 import { Input } from "@/components/ui/input";
 import TablaVenta from "@/components/TablaVenta";
-import { ProductoVenta, VentaPendiente } from "../types";
+import ModalCobro from "./ModalCobro";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+import { ProductoVenta, VentaPendiente } from "./types";
 
 interface Props {
   cliente: string;
-  setCliente: (value: string) => void;
+  setCliente: (v: string) => void;
   vendedor: string;
-  setVendedor: (value: string) => void;
+  setVendedor: (v: string) => void;
   descuento: number;
-  setDescuento: (value: number) => void;
+  setDescuento: (n: number) => void;
   subtotal: number;
   venta: ProductoVenta[];
-  setVenta: (venta: ProductoVenta[]) => void;
+  setVenta: (v: ProductoVenta[]) => void;
   ventasPendientes: VentaPendiente[];
-  agregarVentaPendiente: (productos: ProductoVenta[]) => void;
-  cargarVentaPendiente: (productos: ProductoVenta[]) => void;
+  agregarVentaPendiente: (v: ProductoVenta[]) => void;
+  cargarVentaPendiente: (v: ProductoVenta[]) => void;
   eliminarVentaPendiente: (id: string) => void;
+  mostrarModal: boolean;
+  setMostrarModal: (b: boolean) => void;
+  total: number;
+  pagos: { metodo: string; monto: number }[];
+  setPagos: (v: any) => void;
+  handleCobrar: () => void;
 }
 
-export default function ResumenVenta({
-  cliente, setCliente, vendedor, setVendedor, descuento, setDescuento,
-  subtotal, venta, setVenta, ventasPendientes,
-  agregarVentaPendiente, cargarVentaPendiente, eliminarVentaPendiente
-}: Props) {
+export default function ResumenVenta(props: Props) {
+  const {
+    cliente,
+    setCliente,
+    vendedor,
+    setVendedor,
+    descuento,
+    setDescuento,
+    subtotal,
+    venta,
+    setVenta,
+    ventasPendientes,
+    agregarVentaPendiente,
+    cargarVentaPendiente,
+    eliminarVentaPendiente,
+    mostrarModal,
+    setMostrarModal,
+    total,
+    pagos,
+    setPagos,
+    handleCobrar,
+  } = props;
+
   return (
-    <>
-      <h2 className="text-xl font-bold mb-4">Resumen de venta</h2>
-      <div className="flex gap-2">
-        <Input placeholder="Cliente" value={cliente} onChange={(e) => setCliente(e.target.value)} />
-        <Input placeholder="Vendedor" value={vendedor} onChange={(e) => setVendedor(e.target.value)} />
+    <div className="flex flex-col h-full min-h-0">
+      {/* Cabecera fija */}
+      <div className="p-4 space-y-4">
+        <h2 className="text-xl font-semibold">Resumen de venta</h2>
+
+        <div className="flex flex-wrap gap-2">
+          <Input
+            placeholder="Cliente"
+            value={cliente}
+            onChange={(e) => setCliente(e.target.value)}
+            className="flex-1 min-w-[140px]"
+          />
+          <Input
+            placeholder="Vendedor"
+            value={vendedor}
+            onChange={(e) => setVendedor(e.target.value)}
+            className="flex-1 min-w-[140px]"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-sm">Descuento:</span>
+          <Input
+            type="number"
+            value={descuento}
+            min={0}
+            onChange={(e) => setDescuento(Number(e.target.value) || 0)}
+            className="w-24"
+          />
+          <span className="text-sm text-muted-foreground">
+            Subtotal: ${subtotal.toFixed(2)}
+          </span>
+        </div>
       </div>
-      <div className="flex gap-2 items-center">
-        <label className="text-sm">Descuento:</label>
-        <Input
-          type="number"
-          value={descuento}
-          min={0}
-          onChange={(e) => setDescuento(parseFloat(e.target.value) || 0)}
-          className="w-24"
+
+      {/* Lista con scroll */}
+      <ScrollArea className="flex-1 min-h-0 px-4">
+        <TablaVenta
+          productos={venta}
+          setProductos={setVenta}
+          agregarVentaPendiente={agregarVentaPendiente}
+          ventasPendientes={ventasPendientes}
+          cargarVentaPendiente={cargarVentaPendiente}
+          eliminarVentaPendiente={eliminarVentaPendiente}
         />
-        <span className="text-sm text-muted-foreground">Subtotal: ${subtotal.toFixed(2)}</span>
+      </ScrollArea>
+
+      {/* Botón de Cobrar siempre al fondo */}
+      <div className="sticky bottom-0 p-4 border-t bg-white z-10">
+        <ModalCobro
+          open={mostrarModal}
+          setOpen={setMostrarModal}
+          total={total}
+          pagos={pagos}
+          setPagos={setPagos}
+          handleCobrar={handleCobrar}
+          disabled={venta.length === 0}
+        />
       </div>
-      <TablaVenta
-        productos={venta}
-        setProductos={setVenta}
-        agregarVentaPendiente={agregarVentaPendiente}
-        ventasPendientes={ventasPendientes}
-        cargarVentaPendiente={cargarVentaPendiente}
-        eliminarVentaPendiente={eliminarVentaPendiente}
-      />
-    </>
+    </div>
   );
 }

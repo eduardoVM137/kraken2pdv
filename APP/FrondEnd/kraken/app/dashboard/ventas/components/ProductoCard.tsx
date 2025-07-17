@@ -55,60 +55,64 @@ export default function ProductoCard({ producto, onAgregar }: Props) {
 
   return (
     <div
-      className="border rounded-lg p-3 bg-white shadow flex flex-col justify-between cursor-pointer hover:ring-2 ring-blue-500 transition-all h-[260px] w-[230px]"
+      className="border rounded-lg p-2 bg-white shadow hover:shadow-md transition-all h-[300px] w-full max-w-[250px] mx-auto flex flex-col justify-between cursor-pointer"
       onClick={(e) => {
         if (!(e.target as HTMLElement).closest("button")) agregar();
       }}
     >
-      {/* Imagen generosa */}
-      <div className="flex justify-center items-center">
+      {/* Imagen más grande */}
+      <div className="flex justify-center items-center h-28">
         <img
           src={producto.fotos?.[0] || "/default-product.jpg"}
           alt={producto.nombre_calculado}
-          className="h-28 w-28 object-contain"
+          className="h-full w-auto object-contain"
         />
       </div>
 
-      {/* Información */}
-      <div className="flex flex-col items-center mt-1 text-sm">
-        <h3 className="font-semibold text-center text-[14px] leading-tight line-clamp-2">
+      {/* Info */}
+      <div className="flex-grow flex flex-col justify-center text-center mt-1 px-1">
+        <h3 className="font-medium text-sm line-clamp-2 leading-tight mb-[2px]">
           {producto.nombre_calculado}
         </h3>
-        <p className="text-[14px] mt-1">
-          Precio: <strong>${seleccionarPrecio().toFixed(2)}</strong>
+        <p className="text-green-700 font-semibold text-sm mb-[2px]">
+          ${seleccionarPrecio().toFixed(2)}
         </p>
-        <p className="text-[12px] text-muted-foreground">Stock: {producto.stock_total}</p>
+        <p className="text-xs text-muted-foreground mb-0">
+          Stock: {producto.stock_total}
+        </p>
       </div>
 
-      {/* Presentaciones (tamaño ideal) */}
-      <TooltipProvider>
-        <div className="flex gap-1 overflow-x-auto mt-2 px-1">
-          {producto.presentaciones?.map((p: any) => (
-            <Tooltip key={p.presentacion_id}>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={
-                    seleccionada.presentacion_id === p.presentacion_id
-                      ? "default"
-                      : "outline"
-                  }
-                  size="sm"
-                  className="text-[11px] px-3 py-1 h-7 min-w-[75px] truncate"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSeleccionada(p);
-                  }}
-                >
-                  {p.nombre_presentacion}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{p.nombre_presentacion}</p>
-              </TooltipContent>
-            </Tooltip>
-          ))}
-        </div>
-      </TooltipProvider>
+      {/* Presentaciones */}
+      {producto.presentaciones?.length > 0 && (
+        <TooltipProvider>
+          <div className="flex gap-1 overflow-x-auto mt-[4px] px-1">
+            {producto.presentaciones.map((p: any) => (
+              <Tooltip key={p.presentacion_id}>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={
+                      seleccionada.presentacion_id === p.presentacion_id
+                        ? "default"
+                        : "outline"
+                    }
+                    size="sm"
+                    className="text-[10px] px-2 py-0.5 h-6 truncate"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSeleccionada(p);
+                    }}
+                  >
+                    {p.nombre_presentacion}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{p.nombre_presentacion}</p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </div>
+        </TooltipProvider>
+      )}
     </div>
   );
 }

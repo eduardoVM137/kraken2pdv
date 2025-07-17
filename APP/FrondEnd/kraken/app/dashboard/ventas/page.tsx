@@ -1,99 +1,87 @@
+// app/dashboard/ventas/page.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";
-import { getProductos } from "@/lib/fetchers/productos";
+import { getProductos, buscarProductosPorAlias } from "@/lib/fetchers/ventas";
+import GridProducto from "./components/GridProducto";
 import BuscadorProductos from "./components/BuscadorProductos";
-import PaginacionProductos from "./components/PaginacionProductos";
 import ResumenVenta from "./components/ResumenVenta";
-import ModalCobro from "./components/ModalCobro";
 import { generarTicketPDF } from "@/app/utils/generarTicket";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import ProductoCard from "./components/ProductoCard";
-
-interface ProductoVenta {
-  id: number;
-  nombre: string;
-  precio: number;
-  cantidad: number;
-  presentacion_id?: number;
-}
-
-interface VentaPendiente {
-  id: string;
-  timestamp: string;
-  productos: ProductoVenta[];
-}
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 
 export default function VentasPage() {
+  // ─── Estados ──────────────────────────
   const [productos, setProductos] = useState<any[]>([]);
+  const [productosOriginales, setProductosOriginales] = useState<any[]>([]);
   const [venta, setVenta] = useState<any[]>([]);
-  const [ventasPendientes, setVentasPendientes] = useState<VentaPendiente[]>([]);
   const [busqueda, setBusqueda] = useState("");
+  const [buscarPorAlias, setBuscarPorAlias] = useState(false);
   const [paginaActual, setPaginaActual] = useState(1);
-  const productosPorPagina = 6;
+
+  const [cliente, setCliente] = useState("");
+  const [vendedor, setVendedor] = useState("");
+  const [descuento, setDescuento] = useState(0);
   const [pagos, setPagos] = useState<{ metodo: string; monto: number }[]>([]);
   const [mostrarModal, setMostrarModal] = useState(false);
-  const [descuento, setDescuento] = useState<number>(0);
-  const [vendedor, setVendedor] = useState<string>("");
-  const [cliente, setCliente] = useState<string>("");
 
+  // ─── Carga inicial de productos ────────
   useEffect(() => {
-    getProductos().then(setProductos).catch(console.error);
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (venta.length > 0) {
-        e.preventDefault();
-        e.returnValue = "Tienes una venta en curso. Se perderán los cambios si sales.";
+    getProductos()
+      .then((data) => {
+        setProductos(data);
+        setProductosOriginales(data);
+      })
+      .catch(console.error);
+  }, []);
+
+  // ─── Filtrar por nombre o alias ────────
+  useEffect(() => {
+    const termino = busqueda.trim().toLowerCase();
+    if (buscarPorAlias && termino !== "") {
+      buscarProductosPorAlias(termino)
+        .then(setProductos)
+        .catch(console.error);
+    } else if (termino === "") {
+      setProductos(productosOriginales);
+    }
+  }, [busqueda, buscarPorAlias, productosOriginales]);
+
+  // ─── Agregar producto al carrito ───────
+  const handleAgregarProducto = (p: any) => {
+    setVenta((prev) => {
+      const idx = prev.findIndex(
+        (x) =>
+          x.id === p.id && x.presentacion_id === p.presentacion_id
+      );
+      if (idx >= 0) {
+        const copia = [...prev];
+        copia[idx].cantidad += p.cantidad;
+        return copia;
       }
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [venta]);
+      return [...prev, p];
+    });
+  };
 
-  const productosFiltrados = productos.filter((p) => {
-    const nombre = p.nombre_calculado?.toLowerCase() || "";
-    const criterio = busqueda.toLowerCase();
-    return nombre.includes(criterio);
-  });
-
-  const totalPaginas = Math.ceil(productosFiltrados.length / productosPorPagina);
-  const productosPaginados = productosFiltrados.slice(
-    (paginaActual - 1) * productosPorPagina,
-    paginaActual * productosPorPagina
+  // ─── Cálculo de subtotal y total ──────
+  const subtotal = venta.reduce(
+    (acc, item) => acc + item.precio * item.cantidad,
+    0
   );
-
-  const subtotal = venta.reduce((acc, item) => acc + item.precio * item.cantidad, 0);
   const total = subtotal - descuento;
 
-  const agregarVentaPendiente = (productos: ProductoVenta[]) => {
-    const nuevaVenta: VentaPendiente = {
-      id: `venta-${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      productos: [...productos],
-    };
-    setVentasPendientes((prev) => [...prev, nuevaVenta]);
-    setVenta([]);
-  };
-
-  const cargarVentaPendiente = (productos: ProductoVenta[]) => {
-    if (venta.length > 0) {
-      const confirmar = confirm("Tienes una venta en curso. ¿Deseas guardarla como pendiente antes de cargar otra?");
-      if (confirmar) agregarVentaPendiente(venta);
-      else {
-        const continuar = confirm("¿Deseas descartar la venta actual?");
-        if (!continuar) return;
-      }
-    }
-    setVenta(productos);
-  };
-
-  const eliminarVentaPendiente = (id: string) => {
-    setVentasPendientes((prev) => prev.filter((venta) => venta.id !== id));
-  };
-
+  // ─── Manejar cobro ─────────────────────
   const handleCobrar = () => {
     setMostrarModal(false);
-    const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
+    const totalPagado = pagos.reduce((s, p) => s + p.monto, 0);
     generarTicketPDF(venta, pagos, total, totalPagado);
+
+    // limpiar estado
     setVenta([]);
     setPagos([]);
     setCliente("");
@@ -101,40 +89,52 @@ export default function VentasPage() {
     setDescuento(0);
   };
 
-  const handleAgregarProducto = (data: ProductoVenta) => {
-    setVenta((prev) => {
-      const index = prev.findIndex(
-        (item) => item.id === data.id && item.presentacion_id === data.presentacion_id
-      );
-      if (index >= 0) {
-        const nuevo = [...prev];
-        nuevo[index].cantidad += data.cantidad;
-        return nuevo;
-      }
-      return [...prev, data];
-    });
-  };
-
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6 bg-gray-50 min-h-screen">
-      <div>
-        <BuscadorProductos busqueda={busqueda} setBusqueda={setBusqueda} setPaginaActual={setPaginaActual} />
-        <ScrollArea className="h-[600px] pr-2">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
-            {productosPaginados.map((producto) => (
-              <ProductoCard
-                key={producto.detalle_producto_id + "-card"}
-                producto={producto}
-                onAgregar={handleAgregarProducto}
-              />
-            ))}
-          </div>
-        </ScrollArea>
-        <PaginacionProductos totalPaginas={totalPaginas} paginaActual={paginaActual} setPaginaActual={setPaginaActual} />
-      </div>
+        <div className="flex h-screen">
+    <ResizablePanelGroup
+      direction="horizontal"
+      className="flex h-[100dvh] overflow-hidden"
+    >
+      {/* ─── Panel Productos (75%) ─── */}
+      <ResizablePanel
+        defaultSize={75}
+        minSize={50}
+        className="h-full min-h-0"
+      >
+        <div className="flex flex-col h-full min-h-0 p-6 bg-gray-50">
+          <BuscadorProductos
+            busqueda={busqueda}
+            setBusqueda={setBusqueda}
+            buscarPorAlias={buscarPorAlias}
+            setBuscarPorAlias={setBuscarPorAlias}
+            setPaginaActual={setPaginaActual}
+          />
 
-      <div className="bg-white rounded-md shadow-md p-6 flex flex-col justify-between h-[700px]">
-        <div className="space-y-3">
+           <div className="flex-1 min-h-0 overflow-y-auto">
+                <ScrollArea className="flex-1 min-h-0">
+              <GridProducto
+                productos={productos}
+                onAgregar={handleAgregarProducto}
+                busqueda={busqueda}
+                paginaActual={paginaActual}
+                setPaginaActual={setPaginaActual}
+                buscarPorAlias={buscarPorAlias}
+              />
+            </ScrollArea>
+          </div>
+          
+        </div>
+      </ResizablePanel>
+
+      <ResizableHandle withHandle />
+
+      {/* ─── Panel Resumen (25%) ─── */}
+      <ResizablePanel
+        defaultSize={25}
+        minSize={15}
+        className="h-full min-h-0 hidden lg:block"
+      >
+        <div className="flex flex-col h-full min-h-0 bg-white">
           <ResumenVenta
             cliente={cliente}
             setCliente={setCliente}
@@ -145,24 +145,19 @@ export default function VentasPage() {
             subtotal={subtotal}
             venta={venta}
             setVenta={setVenta}
-            ventasPendientes={ventasPendientes}
-            agregarVentaPendiente={agregarVentaPendiente}
-            cargarVentaPendiente={cargarVentaPendiente}
-            eliminarVentaPendiente={eliminarVentaPendiente}
+            ventasPendientes={[]}
+            agregarVentaPendiente={() => {}}
+            cargarVentaPendiente={() => {}}
+            eliminarVentaPendiente={() => {}}
+            mostrarModal={mostrarModal}
+            setMostrarModal={setMostrarModal}
+            total={total}
+            pagos={pagos}
+            setPagos={setPagos}
+            handleCobrar={handleCobrar}
           />
-          <div className="pt-4">
-            <ModalCobro
-              open={mostrarModal}
-              setOpen={setMostrarModal}
-              total={total}
-              pagos={pagos}
-              setPagos={setPagos}
-              handleCobrar={handleCobrar}
-              disabled={venta.length === 0}
-            />
-          </div>
         </div>
-      </div>
-    </div>
+      </ResizablePanel>
+    </ResizablePanelGroup></div>
   );
 }

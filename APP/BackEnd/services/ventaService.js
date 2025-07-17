@@ -1,5 +1,5 @@
 import { db } from "../config/database.js"; 
-import { eq, sql } from "drizzle-orm";
+import { eq, sql,and,inArray } from "drizzle-orm";
 
 import {  DetalleProducto } from "../models/detalle_producto.js";
 import {ProductoUbicacion} from "../models/producto_ubicacion.js";
@@ -9,6 +9,7 @@ import { Presentacion } from "../models/presentacion.js";
 import { Precio } from "../models/precio.js";
 import { Venta } from "../models/venta.js";
 
+import { EtiquetaProducto } from "../models/etiqueta_producto.js";
 
 export const mostrarVentasService = async () => {
   return await db.select().from(Venta);
@@ -52,4 +53,48 @@ export const obtenerProductosVentaCompacto = async () => {
 
 export const obtenerPresentacionesPorProducto = async () => {
   return await db.select().from(Presentacion);
+};
+
+//venta alias panel
+
+export const buscarProductosPorAliasService = async (busqueda) => {
+  // 1. Obtener todos los detalle_producto_id que coincidan con el alias buscado
+  const aliasCoinciden = await db
+    .select({ detalle_producto_id: EtiquetaProducto.detalle_producto_id })
+    .from(EtiquetaProducto)
+    .where(
+      and(
+        eq(EtiquetaProducto.visible, true),
+        eq(EtiquetaProducto.alias, `${busqueda}`)
+      )
+    );
+
+  const detalleIdsUnicos = [...new Set(aliasCoinciden.map(a => a.detalle_producto_id))];
+  if (detalleIdsUnicos.length === 0) return [];
+
+  // 2. Obtener los productos relacionados (como en obtenerProductosVentaCompacto)
+  const registros = await db
+    .select({
+      detalle_producto_id: ProductoUbicacion.detalle_producto_id,
+      precio_id: Precio.id,
+      presentacion_id: Precio.presentacion_id,
+      tipo_cliente: Precio.tipo_cliente_id,
+      precio_venta: Precio.precio_venta,
+      stock_actual: Inventario.stock_actual,
+      nombre_calculado: DetalleProducto.nombre_calculado,
+      foto: ProductoMultimedia.url_archivo,
+    })
+    .from(ProductoUbicacion)
+    .innerJoin(Precio, eq(ProductoUbicacion.precio_id, Precio.id))
+    .innerJoin(Inventario, eq(ProductoUbicacion.inventario_id, Inventario.id))
+    .innerJoin(DetalleProducto, eq(ProductoUbicacion.detalle_producto_id, DetalleProducto.id))
+    .leftJoin(ProductoMultimedia, eq(ProductoMultimedia.detalle_producto_id, DetalleProducto.id))
+    .where(
+      and(
+        eq(DetalleProducto.activo, true),
+        inArray(DetalleProducto.id, detalleIdsUnicos)
+      )
+    );
+
+  return registros;
 };
