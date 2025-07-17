@@ -97,7 +97,7 @@ export default function VentasPage() {
     >
       {/* ─── Panel Productos (75%) ─── */}
       <ResizablePanel
-        defaultSize={75}
+        defaultSize={65}
         minSize={50}
         className="h-full min-h-0"
       >
@@ -130,7 +130,7 @@ export default function VentasPage() {
 
       {/* ─── Panel Resumen (25%) ─── */}
       <ResizablePanel
-        defaultSize={25}
+        defaultSize={35}
         minSize={15}
         className="h-full min-h-0 hidden lg:block"
       >
