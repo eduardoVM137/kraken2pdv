@@ -144,46 +144,51 @@ export default function VentasPage() {
     0
   );
   const total = subtotal - descuento;
+// Antes: no recibía pagos como parámetro
+// const handleCobrar = async () => { … }
 
-  // ─── Cobrar ────────────────────────────
-  const handleCobrar = async () => {
-    setMostrarModal(false);
-    const totalPagado = pagos.reduce((s, p) => s + p.monto, 0);
-    const pagado = totalPagado >= total;
+// Ahora:
+const handleCobrar = async (pagosSeleccionados: { metodo: string; monto: number }[]) => {
+  setMostrarModal(false);
 
-    const payload = {
-      usuario_id: 1,
-      cliente_id: 1,
-      forma_pago: pagos.map((p) => p.metodo).join(","),
-      comprobante: `TKT-${Date.now()}`,
-      iva: 16,
-      pagado,
-      estado: "pagado",
-      state_id: 1,
-      descuento,
-      detalle: safeVenta.map((item) => ({
-        detalle_producto_id: item.id,
-        precio_venta: item.precio,
-        cantidad: item.cantidad,
-        descuento: 0,
-        empleado_id: 2,
-        inventario_id: item.inventarios[0],
-      })),
-    };
+  // Usamos el array que nos pasan desde el modal
+  const totalPagado = pagosSeleccionados.reduce((s, p) => s + p.monto, 0);
+  const pagado = totalPagado >= total;
 
-    try {
-      const nuevaVenta = await crearVenta(payload);
-      localStorage.removeItem("ventaDraft");
-      generarTicketPDF(safeVenta, pagos, total, totalPagado);
-      setVenta([]);
-      setPagos([]);
-      setDescuento(0);
-      alert(`✅ Venta #${nuevaVenta.id} registrada!\nTotal: $${total.toFixed(2)}`);
-    } catch (err: any) {
-      console.error(err);
-      alert("❌ No se pudo registrar la venta:\n" + err.message);
-    }
+  const payload = {
+    usuario_id: 1,
+    cliente_id: 1,
+    forma_pago: pagosSeleccionados.map((p) => p.metodo).join(","),
+    comprobante: `TKT-${Date.now()}`,
+    iva: 16,
+    pagado,
+    estado: "pagado",
+    state_id: 1,
+    descuento,
+    detalle: safeVenta.map((item) => ({
+      detalle_producto_id: item.id,
+      precio_venta: item.precio,
+      cantidad: item.cantidad,
+      descuento: 0,
+      empleado_id: 2,
+      inventario_id: item.inventarios[0],
+    })),
   };
+
+  try {
+    const nuevaVenta = await crearVenta(payload);
+    localStorage.removeItem("ventaDraft");
+    // Imprimimos usando los pagos del modal
+    generarTicketPDF(safeVenta, pagosSeleccionados, total, totalPagado, false);
+    setVenta([]);
+    setPagos([]);     // si quieres seguir guardando estado
+    setDescuento(0);
+    alert(`✅ Venta #${nuevaVenta.id} registrada!\nTotal: $${total.toFixed(2)}`);
+  } catch (err: any) {
+    console.error(err);
+    alert("❌ No se pudo registrar la venta:\n" + err.message);
+  }
+};
 
   return (
     <div className="flex h-screen">

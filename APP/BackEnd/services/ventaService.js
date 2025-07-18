@@ -16,6 +16,44 @@ export const mostrarVentasService = async () => {
   return await db.select().from(Venta);
 };
  
+export const buscarVentasService = async (ventaId) => {
+
+  return await db
+    .select({
+      // ==== detalle_venta ====
+      detalleVentaId:    DetalleVenta.id,
+      ventaId:           DetalleVenta.venta_id,     // snake_case tal cual
+      cantidad:          DetalleVenta.cantidad,
+      precioVenta:       DetalleVenta.precio_venta, // snake_case
+      descuentoLinea:    DetalleVenta.descuento,
+      subtotalLinea:     DetalleVenta.subtotal,
+      empleadoId:        DetalleVenta.empleado_id,  // snake_case
+
+      // ==== detalle_producto ====
+      detalleProductoId: DetalleProducto.id,
+      nombreProducto:    DetalleProducto.nombre_calculado,
+      descripcion:       DetalleProducto.descripcion,
+      unidadMedida:      DetalleProducto.unidad_medida,
+      marca:             DetalleProducto.marca_id,      // ← usa marca_id
+      activo:            DetalleProducto.activo,        // si lo quieres
+      // atributoId, stateId, etc. también puedes traerlos:
+      // atributoId:     DetalleProducto.atributo_id,
+      // estadoDetalle:  DetalleProducto.state_id,
+    })
+    .from(DetalleVenta)
+    .innerJoin(
+      DetalleProducto,
+      eq(
+        DetalleProducto.id,
+        DetalleVenta.detalle_producto_id   // snake_case
+      )
+    )
+    .where(
+      eq(DetalleVenta.venta_id, ventaId)   // snake_case
+    );
+};
+ 
+ 
 export const insertarVentaService = async (data) => {
   const [nuevo] = await db.insert(Venta).values(data).returning();
   return !!nuevo;

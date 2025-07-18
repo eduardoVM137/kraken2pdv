@@ -1,3 +1,5 @@
+// app/dashboard/ventas/components/ResumenVenta.tsx
+
 "use client";
 
 import { useState } from "react";
@@ -5,8 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
 import TablaVenta from "@/components/TablaVenta";
 import ModalCobro from "./ModalCobro";
+import { generarTicketPDF } from "@/app/utils/generarTicket";
 
 import { ProductoVenta, VentaPendiente } from "./types";
 
@@ -29,7 +38,7 @@ interface Props {
   total: number;
   pagos: { metodo: string; monto: number }[];
   setPagos: (v: any) => void;
-  handleCobrar: () => void;
+  handleCobrar: (pagosSeleccionados: { metodo: string; monto: number }[]) => void;
 }
 
 export default function ResumenVenta(props: Props) {
@@ -57,6 +66,10 @@ export default function ResumenVenta(props: Props) {
 
   const [showPendientes, setShowPendientes] = useState(true);
 
+  const handleImprimirCotizacion = () => {
+    generarTicketPDF(venta, pagos, total, 0, true);
+  };
+
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Cabecera */}
@@ -76,7 +89,6 @@ export default function ResumenVenta(props: Props) {
             className="flex-1 min-w-[140px]"
           />
         </div>
-
         <div className="flex items-center gap-2">
           <span className="text-sm">Descuento:</span>
           <Input
@@ -90,8 +102,6 @@ export default function ResumenVenta(props: Props) {
             Subtotal: ${subtotal.toFixed(2)}
           </span>
         </div>
-
-
       </div>
 
       {/* Ventas pendientes */}
@@ -151,16 +161,35 @@ export default function ResumenVenta(props: Props) {
         )}
       </div>
 
-      {/* Tabla de venta */}
-      <ScrollArea className="flex-1 min-h-0 px-4">
-        <TablaVenta
-          productos={venta}
-          setProductos={setVenta}
-          agregarVentaPendiente={() => agregarVentaPendiente()}
-        />
-      </ScrollArea>
+      {/* Tabla de venta con menú contextual */}
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <ScrollArea className="flex-1 min-h-0 px-4">
+            <TablaVenta
+              productos={venta}
+              setProductos={setVenta}
+              agregarVentaPendiente={agregarVentaPendiente}
+            />
+          </ScrollArea>
+        </ContextMenuTrigger>
+        <ContextMenuContent align="end">
+          <ContextMenuItem onSelect={handleImprimirCotizacion}>
+            Imprimir cotización
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
-      {/* Botón de Cobrar */}
+            {/* Total gigante debajo de la tabla */}
+      <div className="px-4 mt-6 text-center">
+        <span className="text-red-600 text-4xl font-extrabold">
+          ${total.toFixed(2)}
+        </span>
+        <div className="uppercase text-sm text-red-500 tracking-wide">
+          Total a Pagar
+        </div>
+      </div>
+      {/* Cobrar */}
+
       <div className="sticky bottom-0 p-4 border-t bg-white z-10">
         <ModalCobro
           open={mostrarModal}
@@ -168,10 +197,13 @@ export default function ResumenVenta(props: Props) {
           total={total}
           pagos={pagos}
           setPagos={setPagos}
-          handleCobrar={handleCobrar}
+          handleCobrar={(pagosSeleccionados) => handleCobrar(pagosSeleccionados)}
           disabled={venta.length === 0}
         />
       </div>
+
     </div>
+
+    
   );
 }
