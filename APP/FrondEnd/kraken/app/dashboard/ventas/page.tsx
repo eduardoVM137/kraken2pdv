@@ -3,12 +3,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getProductos, buscarProductosPorAlias } from "@/lib/fetchers/ventas";
+import { getProductos, buscarProductosPorAlias, crearVenta } from "@/lib/fetchers/ventas";
 import GridProducto from "./components/GridProducto";
 import BuscadorProductos from "./components/BuscadorProductos";
 import ResumenVenta from "./components/ResumenVenta";
 import { generarTicketPDF } from "@/app/utils/generarTicket";
-import { crearVenta } from "@/lib/fetchers/ventas";
 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -32,7 +31,79 @@ export default function VentasPage() {
   const [pagos, setPagos] = useState<{ metodo: string; monto: number }[]>([]);
   const [mostrarModal, setMostrarModal] = useState(false);
 
-  // ─── Carga inicial de productos ────────
+  // ─── Múltiples ventas pendientes ───────
+  const [ventasPendientes, setVentasPendientes] = useState<any[]>([]);
+
+  // Al montar cargamos ventas pendientes
+  useEffect(() => {
+    const stored = localStorage.getItem("ventasPendientes");
+    if (stored) {
+      try {
+        setVentasPendientes(JSON.parse(stored));
+      } catch {
+        localStorage.removeItem("ventasPendientes");
+      }
+    }
+  }, []);
+
+  // Para persistirlas
+  const persistPendientes = (arr: any[]) => {
+    setVentasPendientes(arr);
+    localStorage.setItem("ventasPendientes", JSON.stringify(arr));
+  };
+
+  const agregarVentaPendiente = () => {
+    const nueva = {
+      id: Date.now().toString(),
+      cliente,
+      vendedor,
+      descuento,
+      productos: venta,
+      timestamp: new Date().toLocaleString(),
+    };
+    persistPendientes([...ventasPendientes, nueva]);
+  };
+
+  const cargarVentaPendiente = (p: any) => {
+    setVenta(p.productos);
+    setCliente(p.cliente);
+    setVendedor(p.vendedor);
+    setDescuento(p.descuento);
+  };
+
+  const eliminarVentaPendiente = (id: string) => {
+    const filtradas = ventasPendientes.filter((v) => v.id !== id);
+    persistPendientes(filtradas);
+  };
+
+  // ─── Auto‑guardado draft ────────────────
+  useEffect(() => {
+    const draft = localStorage.getItem("ventaDraft");
+    if (draft) {
+      try {
+        setVenta(JSON.parse(draft));
+      } catch {
+        localStorage.removeItem("ventaDraft");
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("ventaDraft", JSON.stringify(venta));
+  }, [venta]);
+
+  useEffect(() => {
+    const h = (e: BeforeUnloadEvent) => {
+      if ((venta ?? []).length > 0) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, [venta]);
+
+  // ─── Fetch inicial de productos ────────
   useEffect(() => {
     getProductos()
       .then((data) => {
@@ -42,24 +113,20 @@ export default function VentasPage() {
       .catch(console.error);
   }, []);
 
-  // ─── Filtrar por nombre o alias ────────
   useEffect(() => {
-    const termino = busqueda.trim().toLowerCase();
-    if (buscarPorAlias && termino !== "") {
-      buscarProductosPorAlias(termino)
-        .then(setProductos)
-        .catch(console.error);
-    } else if (termino === "") {
+    const t = busqueda.trim().toLowerCase();
+    if (buscarPorAlias && t !== "") {
+      buscarProductosPorAlias(t).then(setProductos).catch(console.error);
+    } else if (t === "") {
       setProductos(productosOriginales);
     }
   }, [busqueda, buscarPorAlias, productosOriginales]);
 
-  // ─── Agregar producto al carrito ───────
+  // ─── Agregar al carrito ─────────────────
   const handleAgregarProducto = (p: any) => {
     setVenta((prev) => {
       const idx = prev.findIndex(
-        (x) =>
-          x.id === p.id && x.presentacion_id === p.presentacion_id
+        (x) => x.id === p.id && x.presentacion_id === p.presentacion_id
       );
       if (idx >= 0) {
         const copia = [...prev];
@@ -71,134 +138,108 @@ export default function VentasPage() {
   };
 
   // ─── Cálculo de subtotal y total ──────
-  const subtotal = venta.reduce(
-    (acc, item) => acc + item.precio * item.cantidad,
+  const safeVenta = Array.isArray(venta) ? venta : [];
+  const subtotal = safeVenta.reduce(
+    (acc, i) => acc + i.precio * i.cantidad,
     0
   );
   const total = subtotal - descuento;
 
-  // ─── Manejar cobro ─────────────────────
-
+  // ─── Cobrar ────────────────────────────
   const handleCobrar = async () => {
-    // 1) Cerramos el modal
     setMostrarModal(false);
+    const totalPagado = pagos.reduce((s, p) => s + p.monto, 0);
+    const pagado = totalPagado >= total;
 
-    // 2) Calculamos cuánto se ha pagado
-    const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
-    const pagado      = totalPagado >= total;
-
-    // 3) Preparamos el payload con IDs fijos para usuario, cliente y empleado
     const payload = {
-      usuario_id:  1,                                  // ID fijo de usuario
-      cliente_id:  1,                                  // ID fijo de cliente
-      forma_pago:  pagos.map(p => p.metodo).join(","), // e.g. "efectivo,tarjeta"
-      comprobante: `TKT-${Date.now()}`,                // folio dinámico
-      iva:         16,                                 // porcentaje de IVA
-      pagado,                                          // booleano
-      estado:      "pagado",                           // estado fijo
-      state_id:    1,                                  // ID fijo de estado
-      descuento,                                       // descuento general
-     detalle: venta.map(item => ({
+      usuario_id: 1,
+      cliente_id: 1,
+      forma_pago: pagos.map((p) => p.metodo).join(","),
+      comprobante: `TKT-${Date.now()}`,
+      iva: 16,
+      pagado,
+      estado: "pagado",
+      state_id: 1,
+      descuento,
+      detalle: safeVenta.map((item) => ({
         detalle_producto_id: item.id,
-        precio_venta:        item.precio,
-        cantidad:            item.cantidad,
-        descuento:           0,
-        empleado_id:         2,
-        inventario_id:       item.inventarios[0],  // <–– aprovechamos el array
+        precio_venta: item.precio,
+        cantidad: item.cantidad,
+        descuento: 0,
+        empleado_id: 2,
+        inventario_id: item.inventarios[0],
       })),
     };
 
-    console.log("PAYLOAD VENTA:", payload);
-
     try {
-      // 4) Llamada al servicio para crear la venta
       const nuevaVenta = await crearVenta(payload);
-
-      // 5) Generar ticket / PDF si lo necesitas
-      generarTicketPDF(venta, pagos, total, totalPagado);
-
-      // 6) Limpiar el carrito y pagos
+      localStorage.removeItem("ventaDraft");
+      generarTicketPDF(safeVenta, pagos, total, totalPagado);
       setVenta([]);
       setPagos([]);
       setDescuento(0);
-
-      // 7) Notificar al usuario
       alert(`✅ Venta #${nuevaVenta.id} registrada!\nTotal: $${total.toFixed(2)}`);
     } catch (err: any) {
-      console.error("Error al registrar venta:", err);
+      console.error(err);
       alert("❌ No se pudo registrar la venta:\n" + err.message);
     }
   };
 
   return (
-        <div className="flex h-screen">
-    <ResizablePanelGroup
-      direction="horizontal"
-      className="flex h-[100dvh] overflow-hidden"
-    >
-      {/* ─── Panel Productos (75%) ─── */}
-      <ResizablePanel
-        defaultSize={65}
-        minSize={50}
-        className="h-full min-h-0"
-      >
-        <div className="flex flex-col h-full min-h-0 p-6 bg-gray-50">
-          <BuscadorProductos
-            busqueda={busqueda}
-            setBusqueda={setBusqueda}
-            buscarPorAlias={buscarPorAlias}
-            setBuscarPorAlias={setBuscarPorAlias}
-            setPaginaActual={setPaginaActual}
-          />
-
-           <div className="flex-1 min-h-0 overflow-y-auto">
-                <ScrollArea className="flex-1 min-h-0">
-              <GridProducto
-                productos={productos}
-                onAgregar={handleAgregarProducto}
-                busqueda={busqueda}
-                paginaActual={paginaActual}
-                setPaginaActual={setPaginaActual}
-                buscarPorAlias={buscarPorAlias}
-              />
-            </ScrollArea>
+    <div className="flex h-screen">
+      <ResizablePanelGroup direction="horizontal" className="flex h-[100dvh] overflow-hidden">
+        <ResizablePanel defaultSize={65} minSize={50} className="h-full min-h-0">
+          <div className="flex flex-col h-full min-h-0 p-6 bg-gray-50">
+            <BuscadorProductos
+              busqueda={busqueda}
+              setBusqueda={setBusqueda}
+              buscarPorAlias={buscarPorAlias}
+              setBuscarPorAlias={setBuscarPorAlias}
+              setPaginaActual={setPaginaActual}
+            />
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <ScrollArea className="flex-1 min-h-0">
+                <GridProducto
+                  productos={productos}
+                  onAgregar={handleAgregarProducto}
+                  busqueda={busqueda}
+                  paginaActual={paginaActual}
+                  setPaginaActual={setPaginaActual}
+                  buscarPorAlias={buscarPorAlias}
+                />
+              </ScrollArea>
+            </div>
           </div>
-          
-        </div>
-      </ResizablePanel>
+        </ResizablePanel>
 
-      <ResizableHandle withHandle />
+        <ResizableHandle withHandle />
 
-      {/* ─── Panel Resumen (25%) ─── */}
-      <ResizablePanel
-        defaultSize={35}
-        minSize={15}
-        className="h-full min-h-0 hidden lg:block"
-      >
-        <div className="flex flex-col h-full min-h-0 bg-white">
-          <ResumenVenta
-            cliente={cliente}
-            setCliente={setCliente}
-            vendedor={vendedor}
-            setVendedor={setVendedor}
-            descuento={descuento}
-            setDescuento={setDescuento}
-            subtotal={subtotal}
-            venta={venta}
-            setVenta={setVenta}
-            ventasPendientes={[]}
-            agregarVentaPendiente={() => {}}
-            cargarVentaPendiente={() => {}}
-            eliminarVentaPendiente={() => {}}
-            mostrarModal={mostrarModal}
-            setMostrarModal={setMostrarModal}
-            total={total}
-            pagos={pagos}
-            setPagos={setPagos}
-            handleCobrar={handleCobrar}
-          />
-        </div>
-      </ResizablePanel>
-    </ResizablePanelGroup></div>
+        <ResizablePanel defaultSize={35} minSize={15} className="h-full min-h-0 hidden lg:block">
+          <div className="flex flex-col h-full min-h-0 bg-white">
+            <ResumenVenta
+              cliente={cliente}
+              setCliente={setCliente}
+              vendedor={vendedor}
+              setVendedor={setVendedor}
+              descuento={descuento}
+              setDescuento={setDescuento}
+              subtotal={subtotal}
+              venta={venta}
+              setVenta={setVenta}
+              ventasPendientes={ventasPendientes}
+              agregarVentaPendiente={agregarVentaPendiente}
+              cargarVentaPendiente={cargarVentaPendiente}
+              eliminarVentaPendiente={eliminarVentaPendiente}
+              mostrarModal={mostrarModal}
+              setMostrarModal={setMostrarModal}
+              total={total}
+              pagos={pagos}
+              setPagos={setPagos}
+              handleCobrar={handleCobrar}
+            />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+    </div>
   );
 }

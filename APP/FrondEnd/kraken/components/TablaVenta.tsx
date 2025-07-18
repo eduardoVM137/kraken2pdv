@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 
 interface ProductoVenta {
@@ -7,27 +9,20 @@ interface ProductoVenta {
   cantidad: number;
 }
 
-interface VentaPendiente {
-  id: string;
-  timestamp: string;
-  productos: ProductoVenta[];
-}
-
 interface TablaVentaProps {
   productos: ProductoVenta[];
   setProductos: (items: ProductoVenta[]) => void;
   agregarVentaPendiente: (items: ProductoVenta[]) => void;
-  ventasPendientes?: VentaPendiente[];
-  cargarVentaPendiente?: (venta: ProductoVenta[]) => void;
-  eliminarVentaPendiente?: (id: string) => void;
 }
 
-export default function TablaVenta({ productos, setProductos, agregarVentaPendiente, ventasPendientes = [], cargarVentaPendiente, eliminarVentaPendiente }: TablaVentaProps) {
+export default function TablaVenta({
+  productos,
+  setProductos,
+  agregarVentaPendiente,
+}: TablaVentaProps) {
   const subtotal = productos.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
   const totalItems = productos.reduce((sum, item) => sum + item.cantidad, 0);
   const totalUnicos = productos.length;
-
-  const generarIdVenta = () => `venta-${Date.now()}`;
 
   return (
     <div>
@@ -50,9 +45,9 @@ export default function TablaVenta({ productos, setProductos, agregarVentaPendie
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const nuevaLista = [...productos];
-                    nuevaLista[index].cantidad = Math.max(1, nuevaLista[index].cantidad - 1);
-                    setProductos(nuevaLista);
+                    const copia = [...productos];
+                    copia[index].cantidad = Math.max(1, copia[index].cantidad - 1);
+                    setProductos(copia);
                   }}
                 >
                   −
@@ -62,24 +57,25 @@ export default function TablaVenta({ productos, setProductos, agregarVentaPendie
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    const nuevaLista = [...productos];
-                    nuevaLista[index].cantidad += 1;
-                    setProductos(nuevaLista);
+                    const copia = [...productos];
+                    copia[index].cantidad += 1;
+                    setProductos(copia);
                   }}
                 >
                   +
                 </Button>
               </td>
               <td className="text-right">${item.precio.toFixed(2)}</td>
-              <td className="text-right">${(item.precio * item.cantidad).toFixed(2)}</td>
+              <td className="text-right">
+                ${(item.precio * item.cantidad).toFixed(2)}
+              </td>
               <td className="text-right">
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={() => {
-                    const nuevaLista = productos.filter((_, i) => i !== index);
-                    setProductos(nuevaLista);
-                  }}
+                  onClick={() =>
+                    setProductos(productos.filter((_, i) => i !== index))
+                  }
                 >
                   Quitar
                 </Button>
@@ -92,7 +88,9 @@ export default function TablaVenta({ productos, setProductos, agregarVentaPendie
       <div className="flex justify-between items-center mt-4 text-sm font-semibold">
         <span>Total parcial:</span>
         <span>
-          ${subtotal.toFixed(2)} — {totalItems} {totalItems === 1 ? "artículo" : "artículos"}, {totalUnicos} tipo{totalUnicos !== 1 ? "s" : ""}
+          ${subtotal.toFixed(2)} — {totalItems}{" "}
+          {totalItems === 1 ? "artículo" : "artículos"}, {totalUnicos} tipo
+          {totalUnicos !== 1 ? "s" : ""}
         </span>
       </div>
 
@@ -107,41 +105,19 @@ export default function TablaVenta({ productos, setProductos, agregarVentaPendie
           </Button>
           <Button
             variant="ghost"
-            onClick={() => setProductos([])}
+            onClick={() => {
+              if (
+                productos.length > 0 &&
+                window.confirm("¿Seguro que deseas limpiar todo el carrito?")
+              ) {
+                setProductos([]);
+              }
+            }}
             disabled={productos.length === 0}
           >
             Limpiar carrito
           </Button>
         </div>
-
-        {ventasPendientes.length > 0 && cargarVentaPendiente && (
-          <div className="flex flex-col gap-1 max-h-36 overflow-y-auto">
-            {ventasPendientes.map((venta) => (
-              <div key={venta.id} className="flex gap-1 items-center text-sm">
-                <span className="text-muted-foreground">
-                  {new Date(venta.timestamp).toLocaleTimeString()} — {venta.productos.length} productos
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => cargarVentaPendiente(venta.productos)}
-                >
-                  Cargar
-                </Button>
-                {eliminarVentaPendiente && (
-                  <Button
-                    size="icon"
-                    variant="destructive"
-                    className="h-6 w-6"
-                    onClick={() => eliminarVentaPendiente(venta.id)}
-                  >
-                    ×
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
