@@ -10,13 +10,15 @@ import {
 interface Props {
   producto: any;
   onAgregar: (p: {
-    id: number;
-    nombre: string;
-    precio: number;
-    cantidad: number;
+    id:               number;
+    nombre:           string;
+    precio:           number;
+    cantidad:         number;
     presentacion_id?: number;
+    inventarios:      number[];    // <–– añadimos el array
   }) => void;
 }
+
 
 export default function ProductoCard({ producto, onAgregar }: Props) {
   const [seleccionada, setSeleccionada] = useState(
@@ -39,20 +41,20 @@ export default function ProductoCard({ producto, onAgregar }: Props) {
   };
 
   const agregar = () => {
-    const cantidad = seleccionada?.cantidad_presentacion || 1;
-    const nombre = seleccionada?.presentacion_id
+    const cantidad = seleccionada.cantidad_presentacion || 1;
+    const nombre   = seleccionada.presentacion_id
       ? `${producto.nombre_calculado} (${seleccionada.nombre_presentacion} x${cantidad})`
       : producto.nombre_calculado;
 
     onAgregar({
-      id: producto.detalle_producto_id,
+      id:               producto.detalle_producto_id,
       nombre,
-      precio: seleccionarPrecio(),
+      precio:           seleccionarPrecio(),
       cantidad,
-      presentacion_id: seleccionada.presentacion_id,
+      presentacion_id:  seleccionada.presentacion_id,
+      inventarios:      producto.inventarios,  // <–– aquí
     });
   };
-
   return (
     <div
       className="border rounded-lg p-2 bg-white shadow hover:shadow-md transition-all h-[300px] w-full max-w-[250px] mx-auto flex flex-col justify-between cursor-pointer"

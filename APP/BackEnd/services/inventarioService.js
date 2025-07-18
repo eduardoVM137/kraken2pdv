@@ -5,6 +5,9 @@ import { inArray } from 'drizzle-orm';
 export const mostrarInventariosService = async () => {
   return await db.select().from(Inventario);
 };
+export const buscarInventarioService = async (id) => {
+  return await db.select().from(Inventario).where(eq(Inventario.id, id));
+};
 
 export const insertarInventarioService = async (data) => {
   const [nuevo] = await db.insert(Inventario).values(data).returning();

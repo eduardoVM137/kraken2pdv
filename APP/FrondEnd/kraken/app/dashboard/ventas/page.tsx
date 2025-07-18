@@ -8,6 +8,8 @@ import GridProducto from "./components/GridProducto";
 import BuscadorProductos from "./components/BuscadorProductos";
 import ResumenVenta from "./components/ResumenVenta";
 import { generarTicketPDF } from "@/app/utils/generarTicket";
+import { crearVenta } from "@/lib/fetchers/ventas";
+
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ResizablePanelGroup,
@@ -76,17 +78,56 @@ export default function VentasPage() {
   const total = subtotal - descuento;
 
   // ─── Manejar cobro ─────────────────────
-  const handleCobrar = () => {
-    setMostrarModal(false);
-    const totalPagado = pagos.reduce((s, p) => s + p.monto, 0);
-    generarTicketPDF(venta, pagos, total, totalPagado);
 
-    // limpiar estado
-    setVenta([]);
-    setPagos([]);
-    setCliente("");
-    setVendedor("");
-    setDescuento(0);
+  const handleCobrar = async () => {
+    // 1) Cerramos el modal
+    setMostrarModal(false);
+
+    // 2) Calculamos cuánto se ha pagado
+    const totalPagado = pagos.reduce((sum, p) => sum + p.monto, 0);
+    const pagado      = totalPagado >= total;
+
+    // 3) Preparamos el payload con IDs fijos para usuario, cliente y empleado
+    const payload = {
+      usuario_id:  1,                                  // ID fijo de usuario
+      cliente_id:  1,                                  // ID fijo de cliente
+      forma_pago:  pagos.map(p => p.metodo).join(","), // e.g. "efectivo,tarjeta"
+      comprobante: `TKT-${Date.now()}`,                // folio dinámico
+      iva:         16,                                 // porcentaje de IVA
+      pagado,                                          // booleano
+      estado:      "pagado",                           // estado fijo
+      state_id:    1,                                  // ID fijo de estado
+      descuento,                                       // descuento general
+     detalle: venta.map(item => ({
+        detalle_producto_id: item.id,
+        precio_venta:        item.precio,
+        cantidad:            item.cantidad,
+        descuento:           0,
+        empleado_id:         2,
+        inventario_id:       item.inventarios[0],  // <–– aprovechamos el array
+      })),
+    };
+
+    console.log("PAYLOAD VENTA:", payload);
+
+    try {
+      // 4) Llamada al servicio para crear la venta
+      const nuevaVenta = await crearVenta(payload);
+
+      // 5) Generar ticket / PDF si lo necesitas
+      generarTicketPDF(venta, pagos, total, totalPagado);
+
+      // 6) Limpiar el carrito y pagos
+      setVenta([]);
+      setPagos([]);
+      setDescuento(0);
+
+      // 7) Notificar al usuario
+      alert(`✅ Venta #${nuevaVenta.id} registrada!\nTotal: $${total.toFixed(2)}`);
+    } catch (err: any) {
+      console.error("Error al registrar venta:", err);
+      alert("❌ No se pudo registrar la venta:\n" + err.message);
+    }
   };
 
   return (

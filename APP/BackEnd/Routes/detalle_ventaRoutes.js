@@ -9,6 +9,7 @@ import {
 const router = express.Router();
 
 router.get("/", mostrarDetalleVentasController);
+router.get("/", mostrarDetalleVentasController);
 router.post("/", insertarDetalleVentaController);
 router.put("/:id", editarDetalleVentaController);
 router.delete("/:id", eliminarDetalleVentaController);

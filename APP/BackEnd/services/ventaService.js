@@ -8,6 +8,7 @@ import { Inventario } from "../models/inventario.js";
 import { Presentacion } from "../models/presentacion.js";
 import { Precio } from "../models/precio.js";
 import { Venta } from "../models/venta.js";
+import { DetalleVenta } from "../models/detalle_venta.js";
 
 import { EtiquetaProducto } from "../models/etiqueta_producto.js";
 
@@ -39,6 +40,7 @@ export const obtenerProductosVentaCompacto = async () => {
       presentacion_id: Precio.presentacion_id,
       tipo_cliente: Precio.tipo_cliente_id,
       precio_venta: Precio.precio_venta,
+      inventario_id: ProductoUbicacion.inventario_id,
       stock_actual: Inventario.stock_actual,
       nombre_calculado: DetalleProducto.nombre_calculado,
       foto: ProductoMultimedia.url_archivo,
@@ -80,6 +82,7 @@ export const buscarProductosPorAliasService = async (busqueda) => {
       presentacion_id: Precio.presentacion_id,
       tipo_cliente: Precio.tipo_cliente_id,
       precio_venta: Precio.precio_venta,
+      inventario_id: ProductoUbicacion.inventario_id,
       stock_actual: Inventario.stock_actual,
       nombre_calculado: DetalleProducto.nombre_calculado,
       foto: ProductoMultimedia.url_archivo,
@@ -98,3 +101,89 @@ export const buscarProductosPorAliasService = async (busqueda) => {
 
   return registros;
 };
+
+
+//ventas 
+ 
+export async function crearVentaService(ventaData) {
+  const {
+    usuario_id,
+    cliente_id,
+    forma_pago,
+    comprobante,
+    iva,
+    pagado,
+    estado,
+    state_id,
+    detalle = []
+  } = ventaData;
+
+  // Ejecutamos TODO en una sola transacción Drizzle
+  const resultado = await db.transaction(async (tx) => {
+    // 1) Calcula totalVenta y sub-totales
+    let totalVenta = 0;
+    detalle.forEach(linea => {
+      const qty       = Number(linea.cantidad);
+      const precio    = Number(linea.precio_venta);
+      const descuento = Number(linea.descuento || 0);
+      const subtotal  = qty * precio - descuento;
+      linea.subtotal  = subtotal;
+      totalVenta     += subtotal;
+    });
+
+    // 2) Inserta la cabecera
+    const [ventaRow] = await tx
+      .insert(Venta)
+      .values({
+        usuario_id,
+        cliente_id,
+        fecha: new Date(),    // o `sql` NOW()
+        total: totalVenta,
+        forma_pago,
+        state_id,
+        comprobante,
+        iva,
+        pagado,
+        estado
+      })
+      .returning();
+
+    // 3) Inserta cada detalle y ajusta stock
+    for (const linea of detalle) {
+      const {
+        detalle_producto_id,
+        cantidad,
+        precio_venta,
+        subtotal,
+        descuento,
+        empleado_id,
+        inventario_id
+      } = linea;
+
+      // 3.a) detalle_venta
+      await tx.insert(DetalleVenta).values({
+        venta_id:          ventaRow.id,
+        detalle_producto_id,
+        cantidad,
+        precio_venta,
+        subtotal,
+        descuento,
+        empleado_id
+      });
+
+      // 3.b) resta stock_actual
+  await tx
+    .update(Inventario)
+    .set({ stock_actual: sql`stock_actual - ${cantidad}` })
+    .where(eq(Inventario.id, inventario_id));
+    }
+
+    return {
+      id:    ventaRow.id,
+      fecha: ventaRow.fecha,
+      total: totalVenta
+    };
+  });
+
+  return resultado;
+}

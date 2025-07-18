@@ -21,17 +21,17 @@ build/
 Thumbs.db
 
 # Database / Backups / Imágenes
-/Base de Datos/
-*.bak
-*.sql
-*.png
-*.jpg
-*.jpeg
-*.graphml
-*.gpg
-*.pgerd
-*.txt
-*.ipynb
+# /Base de Datos/
+# *.bak
+# *.sql
+# *.png
+# *.jpg
+# *.jpeg
+# *.graphml
+# *.gpg
+# *.pgerd
+# *.txt
+# *.ipynb
 
 # Otros
 .travis.yml

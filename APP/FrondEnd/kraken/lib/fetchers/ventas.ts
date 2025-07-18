@@ -38,3 +38,13 @@ export async function buscarProductosPorAlias(busqueda: string): Promise<Detalle
   const data = await res.json();
   return Array.isArray(data.data) ? data.data : [];
 }
+
+export async function crearVenta(payload: any) {
+  const res = await fetch("http://localhost:3001/api/venta", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Error al crear la venta");
+  return (await res.json()).data;
+}

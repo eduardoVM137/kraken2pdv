@@ -4,11 +4,11 @@ import {
   editarVentaService,
   eliminarVentaService,
   obtenerProductosVentaCompacto,obtenerPresentacionesPorProducto,buscarProductosPorAliasService,
+  crearVentaService,
 } from "../services/ventaService.js";
 
 
- 
- export const mostrarProductosVentaController = async (req, res, next) => {
+  export const mostrarProductosVentaController = async (req, res, next) => {
   try {
     const [registros, presentaciones] = await Promise.all([
       obtenerProductosVentaCompacto(),
@@ -17,11 +17,13 @@ import {
 
     const productosMap = new Map();
 
+    // 1) Agrupar por detalle_producto_id
     for (const row of registros) {
       const {
         detalle_producto_id,
         nombre_calculado,
         foto,
+        inventario_id,
         stock_actual,
         precio_id,
         presentacion_id,
@@ -34,28 +36,35 @@ import {
           detalle_producto_id,
           nombre_calculado,
           fotos: foto ? [foto] : [],
+          inventarios: [],    // <- sin 'as'
           stock_total: 0,
-          precios: [],
-          presentaciones: [],
+          precios: [],         // <- sin 'as'
+          presentaciones: [],  // <- sin 'as'
         });
       }
 
       const prod = productosMap.get(detalle_producto_id);
 
-      // Agregar foto si no está repetida
+      // Fotos (evitar duplicados)
       if (foto && !prod.fotos.includes(foto)) {
         prod.fotos.push(foto);
       }
 
-      // Agregar stock
+      // Sumar al stock total
       prod.stock_total += Number(stock_actual ?? 0);
 
-      // Agregar precio si no está duplicado por ID
+      // Agregar precio único
       if (!prod.precios.some(p => p.precio_id === precio_id)) {
         prod.precios.push({ precio_id, presentacion_id, tipo_cliente, precio_venta });
       }
+
+      // Agregar inventario único
+      if (!prod.inventarios.some(inv => inv.id === inventario_id)) {
+        prod.inventarios.push({ id: inventario_id, stock: Number(stock_actual ?? 0) });
+      }
     }
 
+    // 2) Añadir presentaciones
     for (const pres of presentaciones) {
       const prod = productosMap.get(pres.detalle_producto_id);
       if (prod && !prod.presentaciones.some(p => p.presentacion_id === pres.id)) {
@@ -67,16 +76,19 @@ import {
       }
     }
 
-    res.status(200).json({ data: Array.from(productosMap.values()) });
+    // 3) Ordenar inventarios por stock y dejar solo los IDs
+    const productos = Array.from(productosMap.values()).map(prod => {
+      prod.inventarios = prod.inventarios
+        .sort((a, b) => b.stock - a.stock)
+        .map(inv => inv.id);
+      return prod;
+    });
+
+    res.status(200).json({ data: productos });
   } catch (error) {
     next(error);
   }
 };
-
-
-
-
-
 
 export const mostrarVentasController = async (req, res, next) => {
   try {
@@ -88,16 +100,17 @@ export const mostrarVentasController = async (req, res, next) => {
 };
 
 
-
-
 export const insertarVentaController = async (req, res, next) => {
   try {
-    const exito = await insertarVentaService(req.body);
-    res.status(exito ? 201 : 400).json({ message: exito ? "Creado" : "Falló" });
-  } catch (error) {
-    next(error);
+    console.log("BODY:", req.body);
+
+    const nuevaVenta = await crearVentaService(req.body);
+    res.status(201).json({ data: nuevaVenta });
+  } catch (err) {
+    next(err);
   }
 };
+
 
 export const editarVentaController = async (req, res, next) => {
   try {
@@ -193,3 +206,5 @@ export const buscarProductosPorAliasController = async (req, res, next) => {
     next(error);
   }
 };
+
+//ventas

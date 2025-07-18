@@ -2,13 +2,23 @@ import {
   mostrarInventariosService,
   insertarInventarioService,
   editarInventarioService,
-  eliminarInventarioService,
+  eliminarInventarioService,buscarInventarioService
 } from "../services/inventarioService.js";
 
 export const mostrarInventariosController = async (req, res, next) => {
   try {
     const data = await mostrarInventariosService();
     res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const buscarInventarioController = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const data = await buscarInventarioService(id);
+   res.status(200).json({ data });
   } catch (error) {
     next(error);
   }
