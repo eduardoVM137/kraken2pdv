@@ -2,7 +2,7 @@ import {
   mostrarDetalleVentasService,
   insertarDetalleVentaService,
   editarDetalleVentaService,
-  eliminarDetalleVentaService,
+  eliminarDetalleVentaService,buscarDetalleVentaService
 } from "../services/detalle_ventaService.js";
 
 export const mostrarDetalleVentasController = async (req, res, next) => {
@@ -13,6 +13,21 @@ export const mostrarDetalleVentasController = async (req, res, next) => {
     next(error);
   }
 };
+
+ // Buscar por ID
+ export const buscarDetalleVentaController = async (req, res, next) => {
+   try {
+     const id = Number(req.params.id);
+     if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+ 
+     const data = await buscarDetalleVentaService(id);
+     if (!data) return res.status(404).json({ message: "Detalle producto no encontrado" });
+ 
+     res.status(200).json({ data });
+   } catch (error) {
+     next(error);
+   }
+ };
 
 export const insertarDetalleVentaController = async (req, res, next) => {
   try {
