@@ -3,23 +3,18 @@
 
 import { useState, useEffect, useRef } from "react";
 
-interface RawEntity {
-  id: number;
-  nombre_usuario: string;
-}
-
 interface Entity {
   id: number;
-  label: string; // ya con nombre + apellido
+  label: string;
 }
 
-// Un cache simple por URL
+// Simple cache por URL
 const cache: Record<string, Entity[]> = {};
 
 interface Props {
   label: string;
   apiUrl: string;
-  value: number | "";              // id seleccionado
+  value: number | "";
   onChange: (id: number) => void;
   placeholder?: string;
 }
@@ -36,7 +31,7 @@ export default function EntitySelect({
   const [filter, setFilter] = useState("");
   const ref = useRef<HTMLDivElement>(null);
 
-  // Carga (y cachea) la lista **solo una vez** por apiUrl
+  // Carga y cachea la lista una sola vez
   useEffect(() => {
     if (cache[apiUrl]) {
       setOptions(cache[apiUrl]);
@@ -45,11 +40,21 @@ export default function EntitySelect({
     fetch(apiUrl)
       .then((r) => r.json())
       .then((j) => {
-        const raws: RawEntity[] = Array.isArray(j.data) ? j.data : [];
-        const ent: Entity[] = raws.map((e) => ({
-          id: e.id,
-          label: e.nombre_usuario,
-        }));
+        const raws: any[] = Array.isArray(j.data) ? j.data : [];
+        const ent: Entity[] = raws.map((e) => {
+          // si viene nombre_usuario lo usamos,
+          // si viene nombre + apellidos los concatenamos,
+          // sino caemos a un fallback con el id.
+          let label: string;
+          if (typeof e.nombre_usuario === "string") {
+            label = e.nombre_usuario;
+          } else if (typeof e.nombre === "string") {
+            label = e.nombre + (e.apellidos ? ` ${e.apellidos}` : "");
+          } else {
+            label = String(e.id);
+          }
+          return { id: e.id, label };
+        });
         cache[apiUrl] = ent;
         setOptions(ent);
       })
@@ -66,7 +71,6 @@ export default function EntitySelect({
   }, []);
 
   const selected = options.find((o) => o.id === value);
-
   const filtered = options.filter((o) =>
     (`${o.id} ${o.label}`)
       .toLowerCase()
@@ -99,7 +103,7 @@ export default function EntitySelect({
                 setOpen(false);
               }}
             >
-              <span className="font-semibold">{o.id}</span> – {o.label}
+              <span className="font-semibold">{o.label}</span> <small className="text-gray-500">({o.id})</small>
             </li>
           ))}
           {filtered.length === 0 && (
