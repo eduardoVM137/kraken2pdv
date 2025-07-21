@@ -15,26 +15,31 @@ import { EtiquetaProducto } from "../models/etiqueta_producto.js";
 export const mostrarVentasService = async () => {
   return await db.select().from(Venta);
 };
+
+
+export const buscarVentaService = async (ventaId) => {
+  return await db.select().from(Venta).where(eq(Venta.id, ventaId));
+};
  
 export const buscarVentasService = async (ventaId) => {
 
   return await db
     .select({
       // ==== detalle_venta ====
-      detalleVentaId:    DetalleVenta.id,
-      ventaId:           DetalleVenta.venta_id,     // snake_case tal cual
+      detalle_venta_id:    DetalleVenta.id,
+      venta_id:           DetalleVenta.venta_id,     // snake_case tal cual
       cantidad:          DetalleVenta.cantidad,
-      precioVenta:       DetalleVenta.precio_venta, // snake_case
-      descuentoLinea:    DetalleVenta.descuento,
-      subtotalLinea:     DetalleVenta.subtotal,
-      empleadoId:        DetalleVenta.empleado_id,  // snake_case
+      precio_venta:       DetalleVenta.precio_venta, // snake_case
+      descuento:    DetalleVenta.descuento,
+      subtotal:     DetalleVenta.subtotal,
+      empleado_id:        DetalleVenta.empleado_id,  // snake_case
 
       // ==== detalle_producto ====
-      detalleProductoId: DetalleProducto.id,
-      nombreProducto:    DetalleProducto.nombre_calculado,
+      detalle_producto_id: DetalleProducto.id,
+      nombre_calculado:    DetalleProducto.nombre_calculado,
       descripcion:       DetalleProducto.descripcion,
-      unidadMedida:      DetalleProducto.unidad_medida,
-      marca:             DetalleProducto.marca_id,      // ← usa marca_id
+      unidad_medida:      DetalleProducto.unidad_medida,
+      marca_id:             DetalleProducto.marca_id,      // ← usa marca_id
       activo:            DetalleProducto.activo,        // si lo quieres
       // atributoId, stateId, etc. también puedes traerlos:
       // atributoId:     DetalleProducto.atributo_id,
@@ -59,10 +64,88 @@ export const insertarVentaService = async (data) => {
   return !!nuevo;
 };
 
-export const editarVentaService = async (id, data) => {
+export const estadoVentaService = async (updates) => {
+  // Esperamos un array de { id, estado }
+  const resultados = await Promise.all(
+    updates.map(async ({ id, estado }) => {
+      const [updated] = await db
+        .update(Venta)
+        .set({ estado })
+        .where(eq(Venta.id, id))
+        .returning();
+      return updated;
+    })
+  );
+  return resultados;
+};
+export const editarVentaCabeceraService = async (id, data) => {
   const [actualizado] = await db.update(Venta).set(data).where(eq(Venta.id, id)).returning();
   return !!actualizado;
 };
+
+
+ 
+export const editarVentaService = async (ventaId, data) => {
+  return await db.transaction(async (tx) => {
+    // 1) Actualizamos la cabecera (sin tocar el total aún)
+    const [cabecera] = await tx
+      .update(Venta)
+      .set({
+        cliente_id: data.cliente_id,
+        usuario_id: data.usuario_id,
+        forma_pago: data.forma_pago,
+        estado:     data.estado,
+        // NO actualizamos `total` aquí
+      })
+      .where(eq(Venta.id, ventaId))
+      .returning();
+
+    if (!cabecera) {
+      // venta no existe
+      return false;
+    }
+
+    // 2) Si vienen detalles en el payload, los actualizamos y recalculamos subtotal de cada línea
+    let nuevoTotal = 0;
+    if (Array.isArray(data.detalles)) {
+      for (const det of data.detalles) {
+        const cantidad = parseFloat(det.cantidad)     || 0;
+        const precio   = parseFloat(det.precio_venta) || 0;
+        const desc     = parseFloat(det.descuento)    || 0;
+        const subtotal = +(cantidad * precio - desc).toFixed(2);
+
+        // Actualizamos la línea con su nuevo subtotal
+        await tx
+          .update(DetalleVenta)
+          .set({
+            cantidad:     det.cantidad,
+            precio_venta: det.precio_venta,
+            descuento:    det.descuento,
+            subtotal,   // escribimos el subtotal recalculado
+          })
+          .where(eq(DetalleVenta.id, det.id));
+
+        nuevoTotal += subtotal;
+      }
+    } else {
+      // Si no recibimos líneas nuevas, leemos los subtotales existentes
+      const filas = await tx
+        .select({ s: DetalleVenta.subtotal })
+        .from(DetalleVenta)
+        .where(eq(DetalleVenta.venta_id, ventaId));
+      nuevoTotal = filas.reduce((acc, { s }) => acc + parseFloat(s), 0);
+    }
+
+    // 3) Finalmente actualizamos el total de la venta con la suma de subtotales
+    await tx
+      .update(Venta)
+      .set({ total: nuevoTotal.toFixed(2) })
+      .where(eq(Venta.id, ventaId));
+
+    return true;
+  });
+};
+
 
 export const eliminarVentaService = async (id) => {
   const eliminado = await db.delete(Venta).where(eq(Venta.id, id)).returning();

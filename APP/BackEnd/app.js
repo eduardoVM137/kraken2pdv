@@ -37,6 +37,7 @@ import pago_empresaRoutes from './Routes/pago_empresaRoutes.js';
 import modulo_empresaRoutes from './Routes/modulo_empresaRoutes.js';
 import configuracion_extra_jsonRoutes from './Routes/configuracion_extra_jsonRoutes.js';
 import contenedor_figuraRoutes from './Routes/contenedor_figuraRoutes.js';
+import usuarioRoutes from './Routes/usuarioRoutes.js';
 import errorHandler from './middlewares/errorHandler.js';
  
 import cors from 'cors';
@@ -88,6 +89,7 @@ app.use('/api/pago-empresa', pago_empresaRoutes);
 app.use('/api/modulo-empresa', modulo_empresaRoutes);
 app.use('/api/configuracion-extra-json', configuracion_extra_jsonRoutes);
 app.use('/api/contenedor-figura', contenedor_figuraRoutes);
+app.use('/api/usuario', usuarioRoutes);
 
 // Middleware de manejo de errores
 app.use(errorHandler);

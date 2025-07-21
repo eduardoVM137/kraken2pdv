@@ -39,7 +39,7 @@ export * from './state.js';
 export * from './subCategoria.js';
 export * from './tipo_contenedor.js';
 export * from './ubicacion_fisica.js';
-// export * from './usuario.js';  si
+ export * from './usuario.js';  
 //export * from './usuarioRol.js';
 export * from './venta.js';
 //export * from './acceso.js'; si

@@ -4,7 +4,7 @@ import {
   editarVentaService,
   eliminarVentaService,
   obtenerProductosVentaCompacto,obtenerPresentacionesPorProducto,buscarProductosPorAliasService,
-  crearVentaService,buscarVentasService
+  crearVentaService,buscarVentasService,estadoVentaService,buscarVentaService
 } from "../services/ventaService.js";
 
 
@@ -117,12 +117,43 @@ export const buscarVentasController = async (req, res, next) => {
   }
 };
 
+export const buscarVentaController = async (req, res, next) => {
+  try {
+    const ventaId = Number(req.params.id);
+    if (Number.isNaN(ventaId)) {
+      return res.status(400).json({ message: "ID de venta inválido" });
+    }
+
+    const detalles = await buscarVentaService(ventaId);
+
+    if (!detalles || detalles.length === 0) {
+      return res.status(404).json({ message: "Venta no encontrada o sin detalles" });
+    }
+
+    res.status(200).json({ data: detalles });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const insertarVentaController = async (req, res, next) => {
   try {
     console.log("BODY:", req.body);
 
     const nuevaVenta = await crearVentaService(req.body);
     res.status(201).json({ data: nuevaVenta });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+export const estadoVentasController = async (req, res, next) => {
+  try {
+    const payload = req.body;
+    const resultado = await estadoVentaService(payload);
+    res.status(200).json({ data: resultado });
   } catch (err) {
     next(err);
   }

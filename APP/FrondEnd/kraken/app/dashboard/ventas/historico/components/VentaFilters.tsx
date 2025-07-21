@@ -30,8 +30,8 @@ export type VentaFiltersProps = {
   onStateChange: (arr: string[]) => void;
   clienteFilter: string;
   onClienteChange: (v: string) => void;
-  vendedorFilter: string;
-  onVendedorChange: (v: string) => void;
+  usuarioFilter: string;
+  onUsuarioChange: (v: string) => void;
   minTotal: string;
   onMinTotalChange: (v: string) => void;
   maxTotal: string;
@@ -50,7 +50,7 @@ export default function VentaFilters({
   clienteFilter,
   onClienteChange,
   vendedorFilter,
-  onVendedorChange,
+  onUsuarioChange,
   minTotal,
   onMinTotalChange,
   maxTotal,
@@ -138,10 +138,10 @@ export default function VentaFilters({
 
           {/* Vendedor */}
           <div>
-            <label className="block text-sm mb-1">Vendedor</label>
+            <label className="block text-sm mb-1">Usuario</label>
             <Input
-              value={vendedorFilter}
-              onChange={(e) => onVendedorChange(e.currentTarget.value)}
+              value={usuarioFilter}
+              onChange={(e) => onUsuarioChange(e.currentTarget.value)}
               placeholder="ID o nombre"
             />
           </div>

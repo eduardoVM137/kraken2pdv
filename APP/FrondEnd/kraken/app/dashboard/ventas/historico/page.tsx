@@ -10,6 +10,7 @@ import {
   TabsContent,
 } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableHeader,
@@ -23,6 +24,8 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 import {
   Download,
@@ -41,16 +44,14 @@ import {
 import {
   mostrarVentas,
   getDetalleVenta,
-  getTrazabilidadVenta,
+  getTrazabilidadVenta,actualizarEstadosVentas,getClientesYEmpleados 
 } from "@/lib/fetchers/ventas";
 import KPICards from "./components/KPICards";
 import SalesChartCard from "./components/SalesChart";
-
 import VentaFilters from "./components/VentaFilters";
 import VentaPagination from "./components/VentaPagination";
 import VentaDetalle, { Detalle } from "./components/VentaDetalle";
-import VentaTrazabilidad, { StateLog } from "./components/VentaTrazabilidad";
-
+import VentaTrazabilidad, { StateLog } from "./components/VentaTrazabilidad"; 
 interface Venta {
   id: number;
   fecha: string;
@@ -60,6 +61,8 @@ interface Venta {
   estado: string | null;
   forma_pago: string | null;
 }
+
+const ESTADOS = ["pendiente", "pagado", "cancelado", "devuelto"] as const;
 
 export default function HistoricoVentasPage() {
   const router = useRouter();
@@ -71,10 +74,13 @@ export default function HistoricoVentasPage() {
   const [dateTo, setDateTo] = useState("");
   const [stateFilter, setStateFilter] = useState<string[]>([]);
   const [clienteFilter, setClienteFilter] = useState("");
-  const [vendedorFilter, setVendedorFilter] = useState("");
+  const [usuarioFilter, setUsuarioFilter] = useState("");
   const [minTotal, setMinTotal] = useState("");
   const [maxTotal, setMaxTotal] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("todos");
+
+    const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [usuarios,setUsuarios] = useState<Usuario[]>([]);
 
   // — Paginación —
   const [pageIndex, setPageIndex] = useState(1);
@@ -84,44 +90,71 @@ export default function HistoricoVentasPage() {
   const [selected, setSelected] = useState<Venta | null>(null);
   const [detalles, setDetalles] = useState<Detalle[]>([]);
   const [logs, setLogs] = useState<StateLog[]>([]);
-  const [tab, setTab] = useState<"listado" | "detalle" | "trazabilidad">("listado");
+  const [tab, setTab] = useState<"listado" | "detalle" | "trazabilidad">(
+    "listado"
+  );
 
   // — Ordenamiento —
-  const [sortConfig, setSortConfig] = useState<{ key: keyof Venta; direction: "asc" | "desc" } | null>(null);
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof Venta;
+    direction: "asc" | "desc";
+  } | null>(null);
 
   // 1) Carga inicial
   useEffect(() => {
-    mostrarVentas().then(data => {
-      setVentas(data);
-      setFiltered(data);
+    mostrarVentas()
+      .then((data) => {
+        setVentas(data);
+        setFiltered(data);
+      })
+      .catch(console.error);
+  }, []);
+    useEffect(() => {
+    getClientesYEmpleados().then(({ clientes, usuarios }) => {
+      setClientes(clientes);
+      setUsuarios(usuarios);
     }).catch(console.error);
   }, []);
 
   // 2) Filtros
   useEffect(() => {
     let tmp = [...ventas];
-    if (dateFrom) tmp = tmp.filter(v => new Date(v.fecha) >= new Date(dateFrom));
-    if (dateTo) tmp = tmp.filter(v => new Date(v.fecha) <= new Date(dateTo));
-    if (stateFilter.length) tmp = tmp.filter(v => v.estado && stateFilter.includes(v.estado));
-    if (clienteFilter) tmp = tmp.filter(v => String(v.cliente_id).includes(clienteFilter));
-    if (vendedorFilter) tmp = tmp.filter(v => String(v.usuario_id).includes(vendedorFilter));
-    tmp = tmp.filter(v => {
+    if (dateFrom) tmp = tmp.filter((v) => new Date(v.fecha) >= new Date(dateFrom));
+    if (dateTo) tmp = tmp.filter((v) => new Date(v.fecha) <= new Date(dateTo));
+    if (stateFilter.length)
+      tmp = tmp.filter((v) => v.estado && stateFilter.includes(v.estado));
+    if (clienteFilter) tmp = tmp.filter((v) => String(v.cliente_id).includes(clienteFilter));
+    if (usuarioFilter)
+      tmp = tmp.filter((v) => String(v.usuario_id).includes(usuarioFilter));
+    tmp = tmp.filter((v) => {
       const tot = parseFloat(v.total || "0") || 0;
       if (minTotal && tot < +minTotal) return false;
       if (maxTotal && tot > +maxTotal) return false;
       return true;
     });
-    if (paymentFilter !== "todos") tmp = tmp.filter(v => v.forma_pago === paymentFilter);
+    if (paymentFilter !== "todos")
+      tmp = tmp.filter((v) => v.forma_pago === paymentFilter);
     setFiltered(tmp);
     setPageIndex(1);
-  }, [ventas, dateFrom, dateTo, stateFilter, clienteFilter, vendedorFilter, minTotal, maxTotal, paymentFilter]);
+  }, [
+    ventas,
+    dateFrom,
+    dateTo,
+    stateFilter,
+    clienteFilter,
+    usuarioFilter,
+    minTotal,
+    maxTotal,
+    paymentFilter,
+  ]);
 
   // 3) Ordenar
   const sortedVentas = useMemo(() => {
     if (!sortConfig) return filtered;
     const { key, direction } = sortConfig;
     return [...filtered].sort((a, b) => {
-      let v1 = a[key], v2 = b[key];
+      let v1 = a[key],
+        v2 = b[key];
       if (typeof v1 === "string") v1 = v1.toLowerCase();
       if (typeof v2 === "string") v2 = v2.toLowerCase();
       if (v1 == null) return 1;
@@ -132,7 +165,49 @@ export default function HistoricoVentasPage() {
     });
   }, [filtered, sortConfig]);
 
-  // 4) Acciones
+  // datos para el gráfico
+   const chartData = useMemo(() => {
+    if (!filtered.length) return [];
+
+    // convierte todos los fechas de ventas a timestamp
+    const tiempos = filtered.map((v) => new Date(v.fecha).getTime());
+    const minData = Math.min(...tiempos);
+    const maxData = Math.max(...tiempos);
+
+    // rango base: ventas o pickers si existen
+    const start = dateFrom ? new Date(dateFrom).getTime() : minData;
+    const end = dateTo ? new Date(dateTo).getTime() : maxData;
+
+    // agrupa totales por fecha
+    const agrupado: Record<string, number> = {};
+    filtered.forEach((v) => {
+      const t = new Date(v.fecha).getTime();
+      if (t < start || t > end) return;
+      const key = new Date(t).toLocaleDateString();
+      agrupado[key] = (agrupado[key] || 0) + (parseFloat(v.total || "0") || 0);
+    });
+
+    // recorre el rango día a día
+    const data: { date: string; total: number }[] = [];
+    for (let t = start; t <= end; t += 86400_000) {
+      const d = new Date(t);
+      const key = d.toLocaleDateString();
+      data.push({ date: key, total: agrupado[key] || 0 });
+    }
+
+    return data;
+  }, [filtered, dateFrom, dateTo]);
+  // cambio de estado
+    const changeEstado = async (id: number, nuevo: string) => {
+    const ok = await actualizarEstadosVentas([{ id, estado: nuevo }]);
+    if (!ok) {
+    console.error("No se pudo actualizar el estado");
+    return;
+    }
+    const data = await mostrarVentas();
+    setVentas(data);
+    };
+  // acciones
   const handleViewDetail = (v: Venta) => {
     setSelected(v);
     getDetalleVenta(v.id).then(setDetalles).catch(console.error);
@@ -150,14 +225,14 @@ export default function HistoricoVentasPage() {
     setVentas(data);
   };
 
-  // 5) Paginación
+  // paginación
   const totalPages = Math.ceil(sortedVentas.length / pageSize);
   const pageItems = sortedVentas.slice(
     (pageIndex - 1) * pageSize,
     (pageIndex - 1) * pageSize + pageSize
   );
 
-  // 6) CSV
+  // export CSV
   const handleExportCSV = () => {
     const header = ["ID", "Fecha", "Cliente", "Vendedor", "Total", "Estado", "Pago"];
     const rows = filtered.map(v => [
@@ -177,7 +252,7 @@ export default function HistoricoVentasPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Columnas y sort icons
+  // columnas + iconos de sort
   const columns: { label: string; key: keyof Venta }[] = [
     { label: "ID", key: "id" },
     { label: "Fecha", key: "fecha" },
@@ -195,50 +270,39 @@ export default function HistoricoVentasPage() {
         <ChevronDown className="inline ml-1 h-4 w-4" />
       )
     ) : null;
- // Prepara datos agregados por fecha para la gráfica
-  const chartData = useMemo(() => {
-    const byDate: Record<string, number> = {};
-    filtered.forEach((v) => {
-      const d = new Date(v.fecha).toLocaleDateString();
-      byDate[d] = (byDate[d] || 0) + (parseFloat(v.total || "0") || 0);
-    });
-    return Object.entries(byDate).map(([date, total]) => ({ date, total }));
-  }, [filtered]);
 
   return (
-    <div className="p-6 space-y-6"> 
-  
-      {/** BOTONES CSV / IMPRIMIR **/}
-      <div className="flex items-center justify-end space-x-3">
-        <Button
-          onClick={handleExportCSV}
-          className="flex items-center px-3 py-1.5 bg-black hover:bg-gray-900 text-white rounded text-sm"
-        >
-          <Download className="mr-2 h-4 w-4" /> CSV
-        </Button>
-        <Button
-          onClick={() => window.print()}
-          className="flex items-center px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded text-sm"
-        >
-          <Printer className="mr-2 h-4 w-4" /> Imprimir
-        </Button>
-      </div>
+    <div className="p-6 space-y-6">
+      
+  {/* GRID RESPONSIVO: 4 o 5 columnas según tamaño de pantalla */}
+     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 py-4">
+       {/* KPICards renderiza 4 cards: Total, Importe, Ticket, Estados */}
+       <KPICards ventas={ventas} />
+       {/* Y aquí la tarjeta de la gráfica */}
+       <SalesChartCard data={chartData} />
+     </div>
 
-      {/** CARRUSEL de métricas + gráfica **/}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {/* 3 KPIs + gráfico */}
-        <KPICards ventas={ventas} /> 
-      </div>
-
-
+      {/* Tabs/Listado */}
       <Tabs value={tab} onValueChange={setTab}>
+          <div className="flex items-center justify-between mb-2">
+
         <TabsList>
           <TabsTrigger value="listado">📋 Listado</TabsTrigger>
-          <TabsTrigger value="detalle" disabled={!selected}>👁️ Detalle</TabsTrigger>
+          <TabsTrigger value="detalle" disabled={!selected}> 👁️ Detalle</TabsTrigger>
           <TabsTrigger value="trazabilidad" disabled={!selected}>⏱️ Trazabilidad</TabsTrigger>
         </TabsList>
+        
+      {/* CSV / Imprimir */}
+            <div className="flex space-x-2">
+      <Button onClick={handleExportCSV} size="sm" variant="outline" className="flex items-center px-3 py-1.5 bg-black hover:bg-gray-900 text-white rounded text-sm">
+        <Download className="mr-1 h-4 w-4"/> CSV
+      </Button>
+      <Button onClick={() => window.print()} size="sm" variant="outline">
+        <Printer className="mr-1 h-4 w-4"/> Imprimir
+      </Button>
+    </div>
+  </div>
 
-        {/** LISTADO **/}
         <TabsContent value="listado" className="space-y-4 pt-4">
           <VentaFilters
             dateFrom={dateFrom}
@@ -249,8 +313,8 @@ export default function HistoricoVentasPage() {
             onStateChange={setStateFilter}
             clienteFilter={clienteFilter}
             onClienteChange={setClienteFilter}
-            vendedorFilter={vendedorFilter}
-            onVendedorChange={setVendedorFilter}
+            usuarioFilter={usuarioFilter}
+            onUsuarioChange={setUsuarioFilter}
             minTotal={minTotal}
             onMinTotalChange={setMinTotal}
             maxTotal={maxTotal}
@@ -268,61 +332,88 @@ export default function HistoricoVentasPage() {
                       key={key}
                       className="cursor-pointer"
                       onClick={() =>
-                        setSortConfig(curr =>
+                        setSortConfig((curr) =>
                           curr?.key === key
                             ? { key, direction: curr.direction === "asc" ? "desc" : "asc" }
                             : { key, direction: "asc" }
                         )
                       }
                     >
-                      {label}{renderSortIcon(key)}
+                      {label}
+                      {renderSortIcon(key)}
                     </TableHead>
                   ))}
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pageItems.map(v => (
+                {pageItems.map((v) => (
                   <TableRow key={v.id}>
                     <TableCell>{v.id}</TableCell>
                     <TableCell>{new Date(v.fecha).toLocaleString()}</TableCell>
                     <TableCell>{v.cliente_id ?? "-"}</TableCell>
                     <TableCell>{v.usuario_id ?? "-"}</TableCell>
-                    <TableCell>${(parseFloat(v.total || "0")||0).toFixed(2)}</TableCell>
-                    <TableCell>{v.estado ?? "-"}</TableCell>
-                    <TableCell>{v.forma_pago ?? "-"}</TableCell>
+                    <TableCell>
+                      ${(parseFloat(v.total || "0") || 0).toFixed(2)}
+                    </TableCell>
+                    {/* Estado: sólo badge */}
+                    <TableCell>
+                      <Badge
+                        variant={
+                          v.estado === "pagado"
+                            ? "success"
+                            : v.estado === "cancelado"
+                            ? "destructive"
+                            : "warning"
+                        }
+                      >
+                        {v.estado ?? "-"}
+                      </Badge>
+                    </TableCell>
+                    {/* Pago: badge */}
+                    <TableCell>
+                      <Badge variant="secondary">
+                        {v.forma_pago ?? "-"}
+                      </Badge>
+                    </TableCell>
+
+                    {/* Acciones con menú ⋯ que incluye “Cambiar Estado” */}
                     <TableCell className="flex justify-end gap-2">
-                      <Button variant="ghost" size="sm" onClick={() => handleViewDetail(v)}>
-                        <Eye className="h-5 w-5"/>
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleViewTrazability(v)}>
-                        <Clock className="h-5 w-5"/>
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(v)}>
-                        <Edit className="h-5 w-5"/>
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleRefund(v)}>
-                        <CornerUpLeft className="h-5 w-5"/>
-                      </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleViewDetail(v)}>
+                                              <Eye className="h-5 w-5"/>
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={() => handleViewTrazability(v)}>
+                                              <Clock className="h-5 w-5"/>
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={() => handleEdit(v)}>
+                                              <Edit className="h-5 w-5"/>
+                                            </Button>
+                                            <Button variant="ghost" size="sm" onClick={() => handleRefund(v)}>
+                                              <CornerUpLeft className="h-5 w-5"/>
+                                            </Button>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm">
-                            <MoreHorizontal className="h-5 w-5"/>
+                            <MoreHorizontal className="h-5 w-5" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onSelect={() => console.log("Generar reporte")}>
-                            <Download className="mr-2 h-4 w-4"/> Generar Reporte
+                       
+                          <DropdownMenuItem onSelect={() => handleRefund(v)}>
+                            <CornerUpLeft className="mr-2 h-4 w-4" /> Devolver
                           </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => console.log("Enviar por correo")}>
-                            <Mail className="mr-2 h-4 w-4"/> Enviar por correo
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => console.log("Ver historial completo")}>
-                            <FileText className="mr-2 h-4 w-4"/> Ver Historial
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onSelect={() => console.log("Duplicar venta")}>
-                            Duplicar venta
-                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuLabel className="text-xs">
+                            Cambiar Estado
+                          </DropdownMenuLabel>
+                          {ESTADOS.map((e) => (
+                            <DropdownMenuItem
+                              key={e}
+                              onSelect={() => changeEstado(v.id, e)}
+                            >
+                              {e.charAt(0).toUpperCase() + e.slice(1)}
+                            </DropdownMenuItem>
+                          ))}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -332,17 +423,24 @@ export default function HistoricoVentasPage() {
             </Table>
           </div>
 
-          <VentaPagination pageIndex={pageIndex} totalPages={totalPages} onPageChange={setPageIndex} />
+          <VentaPagination
+            pageIndex={pageIndex}
+            totalPages={totalPages}
+            onPageChange={setPageIndex}
+          />
         </TabsContent>
 
-        {/** DETALLE **/}
-        <TabsContent value="detalle" className="pt-4">
-          {selected && <VentaDetalle detalles={detalles}/>}
-        </TabsContent>
+          <TabsContent value="detalle" className="pt-4">
+            {selected && (
+              <VentaDetalle
+                venta={selected}
+                detalles={detalles}
+              />
+            )}
+          </TabsContent>
 
-        {/** TRAZABILIDAD **/}
         <TabsContent value="trazabilidad" className="pt-4">
-          {selected && <VentaTrazabilidad venta={selected} logs={logs}/>}
+          {selected && <VentaTrazabilidad venta={selected} logs={logs} />}
         </TabsContent>
       </Tabs>
     </div>
