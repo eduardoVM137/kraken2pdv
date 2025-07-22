@@ -7,6 +7,7 @@ interface ProductoVenta {
   nombre: string;
   precio: number;
   cantidad: number;
+  presentacion_id: number;
 }
 
 interface TablaVentaProps {
@@ -38,7 +39,7 @@ export default function TablaVenta({
         </thead>
         <tbody>
           {productos.map((item, index) => (
-            <tr key={item.id} className="border-b">
+    <tr key={`${item.id}-${item.presentacion_id}`} className="border-b">
               <td>{item.nombre}</td>
               <td className="text-center flex items-center justify-center gap-1">
                 <Button
