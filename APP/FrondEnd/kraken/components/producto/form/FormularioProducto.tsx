@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm, FormProvider } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { toast } from "sonner"; 
+import { toast } from "sonner";
 import {
   Tabs,
   TabsContent,
@@ -26,6 +26,8 @@ import { SeccionAlias } from "./SeccionAlias";
 import { SeccionFotos } from "./SeccionFotos";
 import { SeccionUbicaciones } from "./SeccionUbicaciones";
 import { SeccionComponentes } from "./SeccionComponentes";
+import { SeccionInventarios } from "./SeccionInventarios";
+import { SeccionPrecios } from "./SeccionPrecios";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3001";
 
@@ -37,25 +39,31 @@ const productoSchema = z.object({
   descripcion: z.string().optional(),
   nombre_calculado: z.string(),
   activo: z.boolean().default(true),
+
   atributo: z.object({ nombre: z.string() }).optional(),
-  detalles_atributo: z.array(z.object({ valor: z.string() })).optional(),
+  detalles_atributo: z.array(z.object({ valor: z.string() })),
+
   componentes: z.array(z.object({
     detalle_producto_padre_id: z.coerce.number(),
     cantidad: z.coerce.number(),
-  })).optional(),
+  })),
+
   presentaciones: z.array(z.object({
     idVirtualPresentacion: z.string(),
     nombre: z.string(),
     cantidad: z.coerce.number(),
     descripcion: z.string().optional(),
-  })).optional(),
+  })),
+
   etiquetas: z.array(z.object({
     tipo: z.string().optional(),
     alias: z.string(),
     visible: z.boolean().optional(),
     idVirtualPresentacion: z.string().optional(),
-  })).optional(),
-  fotos: z.array(z.string().url()).optional(),
+  })),
+
+  fotos: z.array(z.string().url()),
+
   inventarios: z.array(z.object({
     idVirtual: z.string(),
     stock_actual: z.coerce.number(),
@@ -67,8 +75,9 @@ const productoSchema = z.object({
       contenedor_fisico_id: z.coerce.number(),
       celda_id: z.coerce.number(),
       cantidad: z.coerce.number(),
-    })).optional(),
-  })).optional(),
+    })),
+  })),
+
   precios: z.array(z.object({
     idVirtual: z.string(),
     precio_venta: z.coerce.number(),
@@ -82,29 +91,18 @@ const productoSchema = z.object({
     prioridad: z.coerce.number().optional(),
     descripcion: z.string().optional(),
     idVirtualPresentacion: z.string().optional(),
-  })).optional(),
-  producto_ubicaciones: z.array(z.object({
-    ubicacion_fisica_id: z.coerce.number(),
-    negocio_id: z.coerce.number(),
-    idVirtualInventario: z.string().optional(),
-    idVirtualPrecio: z.string().optional(),
-    compartir: z.boolean().optional(),
-  })).optional(),
+  })),
+producto_ubicaciones: z.array(z.object({
+  ubicacion_fisica_id: z.coerce.number(),
+  negocio_id: z.coerce.number(),
+  idVirtualInventario: z.array(z.string()),
+  idVirtualPrecio: z.array(z.string()),
+  compartir: z.boolean().optional(),
+}))
+    .min(1, "Debes agregar al menos una ubicación lógica"),
 });
 
 export type ProductoFormData = z.infer<typeof productoSchema>;
-
-const obtenerCambios = (valores: any, dirtyFields: any): any => {
-  const result: any = {};
-  for (const key in dirtyFields) {
-    if (typeof dirtyFields[key] === "object" && !Array.isArray(dirtyFields[key])) {
-      result[key] = obtenerCambios(valores[key], dirtyFields[key]);
-    } else {
-      result[key] = valores[key];
-    }
-  }
-  return result;
-};
 
 const transformarDataAlFormulario = (data: any): ProductoFormData => ({
   producto_id: data.producto_id,
@@ -121,14 +119,11 @@ const transformarDataAlFormulario = (data: any): ProductoFormData => ({
   presentaciones: data.presentaciones?.map(p => ({ ...p, idVirtualPresentacion: `pres_${p.id}` })) ?? [],
   etiquetas: data.etiquetas ?? [],
   precios: data.precios?.map(p => ({ ...p, idVirtual: `price_${p.id}` })) ?? [],
-  inventarios: data.inventarios?.map(i => ({
-    ...i,
-    idVirtual: `inv_${i.id}`,
-  })) ?? [],
+  inventarios: data.inventarios?.map(i => ({ ...i, idVirtual: `inv_${i.id}` })) ?? [],
   producto_ubicaciones: data.ubicaciones?.map((u: any) => ({
     ...u,
-    idVirtualInventario: `inv_${u.inventario_id}`,
-    idVirtualPrecio: `price_${u.precio_id}`,
+    idVirtualInventario: u.inventario_id ? `inv_${u.inventario_id}` : undefined,
+    idVirtualPrecio: u.precio_id ? `price_${u.precio_id}` : undefined,
   })) ?? [],
 });
 
@@ -148,7 +143,7 @@ export const FormularioProducto = ({ id }: { id?: number }) => {
     },
   });
 
-  const { reset, getValues, formState, handleSubmit } = form;
+  const { reset, handleSubmit } = form;
   const [loading, setLoading] = useState(!!id);
 
   useEffect(() => {
@@ -162,31 +157,30 @@ export const FormularioProducto = ({ id }: { id?: number }) => {
     };
     load();
   }, [id, reset]);
-const onSubmit = async (values: ProductoFormData) => {
-  const cambios = id ? obtenerCambios(values, formState.dirtyFields) : values;
 
-  try {
-    const endpoint = id
-      ? `${API_BASE}/api/detalle-producto/editar/${id}`  // usa este nuevo endpoint
-      : `${API_BASE}/api/detalle-producto`;
+  const onSubmit = async (values: ProductoFormData) => {
+    try {
+      console.log("📤 Enviando producto al backend:", values);
 
-    const res = await fetch(endpoint, {
-      method: id ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(cambios),
-    });
+      const endpoint = id
+        ? `${API_BASE}/api/detalle-producto/editar/${id}`
+        : `${API_BASE}/api/detalle-producto`;
 
-    if (!res.ok) throw new Error("Fallo la petición");
+      const res = await fetch(endpoint, {
+        method: id ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(values),
+      });
 
-    toast.success(id ? "Producto actualizado correctamente" : "Producto creado correctamente");
+      if (!res.ok) throw new Error("Fallo la petición");
 
-    if (!id) reset(); // limpiar formulario si es nuevo
-  } catch (err) {
-    toast.error("Error al guardar el producto");
-    console.error(err);
-  }
-};
-
+      toast.success(id ? "Producto actualizado correctamente" : "Producto creado correctamente");
+      if (!id) reset();
+    } catch (err) {
+      toast.error("Error al guardar el producto");
+      console.error(err);
+    }
+  };
 
   if (loading) return <p className="text-sm">Cargando producto...</p>;
 
@@ -216,6 +210,7 @@ const onSubmit = async (values: ProductoFormData) => {
                     <AccordionTrigger>🏷️ Alias / Códigos</AccordionTrigger>
                     <AccordionContent><SeccionAlias /></AccordionContent>
                   </AccordionItem>
+            
                 </Accordion>
               </div>
               <div className="space-y-4">

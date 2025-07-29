@@ -49,8 +49,12 @@ const Field = ({ label, icon, children }: { label: string; icon: React.ReactElem
   </div>
 );
 
-export const SeccionInventarios = ({ inv, idVirtual, inventarios, setValue }: { inv: any; idVirtual: string; inventarios: any[]; setValue: any }) => {
+export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setValue }: { inv: any; idVirtual: string; inventarios: any[]; setValue: any }) => {
   const { control } = useFormContext<ProductoFormData>();
+  const invIndex = inventarios.findIndex(i => i.idVirtual === idVirtual);
+  const inv = invIndex !== -1
+    ? inventarios[invIndex]
+    : propInv
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [contenedores, setContenedores] = useState<any[]>([]);
   const [celdas, setCeldas] = useState<any[]>([]);
@@ -114,13 +118,13 @@ export const SeccionInventarios = ({ inv, idVirtual, inventarios, setValue }: { 
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white rounded-xl p-6 shadow-md border">
         <Field label="Stock actual (Unidades)" icon={<PackageSearch />}>
-          <Input type="number" defaultValue={inv?.stock_actual ?? ""} className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm" onBlur={(e) => updateInv("stock_actual", Number(e.target.value))} />
+          <Input type="number" value={inv?.stock_actual?.toString() ?? ""} className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm" onChange ={(e) => updateInv("stock_actual", Number(e.target.value))} />
         </Field>
         <Field label="Stock mínimo (Alerta)" icon={<AlertTriangle />}>
-          <Input type="number" defaultValue={inv?.stock_minimo ?? ""} className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm" onBlur={(e) => updateInv("stock_minimo", Number(e.target.value))} />
+          <Input type="number" value={inv?.stock_minimo?.toString() ?? ""} className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm" onChange ={(e) => updateInv("stock_minimo", Number(e.target.value))} />
         </Field>
         <Field label="Precio costo (MXN)" icon={<DollarSign />}>
-          <Input type="number" defaultValue={inv?.precio_costo ?? ""} className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm" onBlur={(e) => updateInv("precio_costo", Number(e.target.value))} />
+          <Input type="number" value={inv?.precio_costo?.toString() ?? ""} className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm" onChange ={(e) => updateInv("precio_costo", Number(e.target.value))} />
         </Field>
         <Field label="Proveedor asociado" icon={<Truck />}>
           <ComboboxSelect

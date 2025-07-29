@@ -70,7 +70,7 @@ app.use('/api/presentacion', presentacionRoutes);
 app.use('/api/atributo', atributoRoutes);
 app.use('/api/etiqueta-producto', etiqueta_productoRoutes);
 app.use('/api/precio', precioRoutes);
-app.use('/api/ubicacion', ubicacionRoutes);
+app.use('/api/ubicacion-fisica', ubicacionRoutes);
 app.use('/api/contenedor-fisico', contenedor_fisicoRoutes);
 app.use('/api/contenedor-instancia', contenedor_instanciaRoutes);
 app.use('/api/detalle-producto-celda', detalle_producto_celdaRoutes);
