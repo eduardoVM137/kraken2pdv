@@ -157,30 +157,48 @@ export const FormularioProducto = ({ id }: { id?: number }) => {
     };
     load();
   }, [id, reset]);
+  
+  // Dentro de tu FormularioProducto, en el onSubmit:
+const onSubmit = async (values: ProductoFormData) => {
+  // 1) Limpiamos placeholders de inventario…
+  const inventarios = values.inventarios.filter(
+    (inv) => inv.idVirtual && inv.idVirtual !== "__NEW_INV__"
+  );
 
-  const onSubmit = async (values: ProductoFormData) => {
-    try {
-      console.log("📤 Enviando producto al backend:", values);
+  // 2) Convertimos array → string en producto_ubicaciones
+  const producto_ubicaciones = values.producto_ubicaciones.map((u) => ({
+    ubicacion_fisica_id: u.ubicacion_fisica_id,
+    negocio_id: u.negocio_id,
+    compartir: u.compartir ?? false,
+    // aquí tomamos sólo el primer elemento (o cadena vacía si no hay)
+    idVirtualInventario: u.idVirtualInventario?.[0] ?? "",
+    idVirtualPrecio: u.idVirtualPrecio?.[0] ?? "",
+  }));
 
-      const endpoint = id
-        ? `${API_BASE}/api/detalle-producto/editar/${id}`
-        : `${API_BASE}/api/detalle-producto`;
-
-      const res = await fetch(endpoint, {
-        method: id ? "PUT" : "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(values),
-      });
-
-      if (!res.ok) throw new Error("Fallo la petición");
-
-      toast.success(id ? "Producto actualizado correctamente" : "Producto creado correctamente");
-      if (!id) reset();
-    } catch (err) {
-      toast.error("Error al guardar el producto");
-      console.error(err);
-    }
+  const payload = {
+    ...values,
+    inventarios,
+    producto_ubicaciones,
   };
+
+  try {
+    const endpoint = id
+      ? `${API_BASE}/api/detalle-producto/editar/${id}`
+      : `${API_BASE}/api/detalle-producto`;
+    const res = await fetch(endpoint, {
+      method: id ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Fallo la petición");
+    toast.success(id ? "Actualizado" : "Creado");
+    if (!id) reset();
+  } catch (err) {
+    console.error(err);
+    toast.error("Error al guardar");
+  }
+};
+
 
   if (loading) return <p className="text-sm">Cargando producto...</p>;
 
@@ -225,9 +243,11 @@ export const FormularioProducto = ({ id }: { id?: number }) => {
           </TabsContent>
         </Tabs>
 
+     <div className="text-right">
         <Button type="submit">
           {id ? "💾 Guardar cambios" : "➕ Crear producto"}
         </Button>
+        </div>
       </form>
     </FormProvider>
   );
