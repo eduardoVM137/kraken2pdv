@@ -1,17 +1,18 @@
-import { ReactNode } from "react";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { Topbar } from "@/components/layout/Topbar";
+"use client";
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+import { Sidebar, SidebarContent, SidebarItem, SidebarSeparator } from "@/components/ui/sidebar";
+
+export function AppSidebar() {
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex flex-col flex-1">
-        <Topbar />
-        <main className="p-4 bg-muted flex-1 overflow-auto">
-          {children}
-        </main>
-      </div>
-    </div>
+    <Sidebar className="h-full border-r bg-background">
+      <SidebarContent>
+        <SidebarItem href="/dashboard">Dashboard</SidebarItem>
+        <SidebarItem href="/productos">Productos</SidebarItem>
+        <SidebarItem href="/compras">Compras</SidebarItem>
+        <SidebarItem href="/ventas">Ventas</SidebarItem>
+        <SidebarSeparator />
+        <SidebarItem href="/configuracion">Configuración</SidebarItem>
+      </SidebarContent>
+    </Sidebar>
   );
 }
