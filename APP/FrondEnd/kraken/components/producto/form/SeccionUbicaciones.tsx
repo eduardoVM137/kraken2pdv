@@ -20,6 +20,16 @@ import { ComboboxSelect } from "@/components/ui/ComboboxSelect";
 import { Switch } from "@/components/ui/switch"; 
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner"; 
+const TEMP_ID = "__NEW_INV__";
+const DEFAULT_INV = {
+  idVirtual: TEMP_ID,
+  stock_actual: 0,
+  stock_minimo: 0,
+  precio_costo: 0,
+  proveedor_id: 1,
+  ubicacion_fisica_id: 1,
+  celdas: [],
+};
 export const SeccionUbicaciones = () => {
 const { control, setValue, getValues } = useFormContext<ProductoFormData>();
 
@@ -45,8 +55,10 @@ const {
 } = useFieldArray({ control, name: "inventarios" });
 
 
- const [chipsPrecios, setChipsPrecios] = useState(precios);
-const [chipsInventarios, setChipsInventarios] = useState(inventarios);
+ const [chipsPrecios, setChipsPrecios] = useState(precios); 
+const [chipsInventarios, setChipsInventarios] = useState(
+  inventarios.filter(i => i.idVirtual !== TEMP_ID)
+);
 
 useEffect(() => {
   if (
@@ -195,16 +207,7 @@ useEffect(() => {
     });
   }
 };
-const TEMP_ID = "__NEW_INV__";
-const DEFAULT_INV = {
-  idVirtual: TEMP_ID,
-  stock_actual: 0,
-  stock_minimo: 0,
-  precio_costo: 0,
-  proveedor_id: 1,
-  ubicacion_fisica_id: 1,
-  celdas: [],
-};
+
 
 // 1) Asegúrate de que siempre haya un placeholder en el array:
 useEffect(() => {
@@ -214,6 +217,7 @@ useEffect(() => {
   }
 }, [inventariosWatch]);
 const eliminarSiNoEstaEnUso = (id: string, tipo: "precio" | "inventario") => {
+  // 1) Logica original de “en uso” y limpieza en ubicaciones
   const enUso = ubicaciones.some((u) => {
     const lista = tipo === "precio" ? u.idVirtualPrecio : u.idVirtualInventario;
     return lista?.includes(id);
@@ -241,22 +245,35 @@ const eliminarSiNoEstaEnUso = (id: string, tipo: "precio" | "inventario") => {
     });
   }
 
+  // 2) Si es precio, borro como antes...
   if (tipo === "precio") {
     const idx = preciosWatch.findIndex((p) => p.idVirtual === id);
     if (idx !== -1) {
       removePrecio(idx);
-      // ✂ Aquí quitas el chip de precios confirmados:
       setChipsPrecios(prev => prev.filter(p => p.idVirtual !== id));
+      toast.success("Precio eliminado");
     }
-  } else {
-    const idx = inventariosWatch.findIndex((i) => i.idVirtual === id);
-    if (idx !== -1) {
-      removeInventario(idx);
-      // ✂ Aquí quitas el chip de inventarios confirmados:
-      setChipsInventarios(prev => prev.filter(i => i.idVirtual !== id));
-    }
+    return;
   }
+  console.log("Eliminando inventario");
+
+    // 1) Si estabas editando justo este inventario, vamos al placeholder YA:
+  if (expandedInventario === id) {
+    setExpandedInventario(TEMP_ID);
+  }
+
+  // 2) Quitamos del form y de los chips
+  const idxInv = inventariosWatch.findIndex((i) => i.idVirtual === id);
+  if (idxInv === -1) return;
+  removeInventario(idxInv);
+  setChipsInventarios((prev) => prev.filter((i) => i.idVirtual !== id));
+
+  // 3) Creamos siempre un nuevo placeholder (no esperamos al watch):
+  appendInventario({ ...DEFAULT_INV });
+
+  toast.success("Inventario eliminado");
 };
+
 
 const inv = inventariosWatch.find(i => i.idVirtual === expandedInventario) || {
   idVirtual: "nuevo",
@@ -377,112 +394,172 @@ const inv = inventariosWatch.find(i => i.idVirtual === expandedInventario) || {
       </AccordionContent>
     </AccordionItem>
       {/* 📦 Inventarios */}  
+
+{/* 📦 Inventarios */}  
 <AccordionItem value="inventarios">
   <AccordionTrigger>📦 Sección de inventarios</AccordionTrigger>
   <AccordionContent>
+<div className="flex flex-wrap gap-2 mb-4">
+  {chipsInventarios.map((i) => (
+    <Badge
+      key={i.idVirtual}
+      onClick={() => {
+        // Abre el modo edición
+        setExpandedInventario(i.idVirtual);
+        const idx = inventariosWatch.findIndex(inv => inv.idVirtual === i.idVirtual);
+        Object.entries(i).forEach(([k, v]) => {
+          if (k !== "idVirtual") setValue(`inventarios.${idx}.${k}`, v);
+        });
+      }}
+      className="flex items-center gap-1 cursor-pointer"
+    >
+      Stock {i.stock_actual}
 
-    { /* — 2a) Chips de inventarios ya guardados (excluyendo el placeholder) — */ }
-    <div className="flex flex-wrap gap-2 mb-4">
-      {inventariosWatch
-        .filter((i) => i.idVirtual !== TEMP_ID)
-        .map((i) => (
-          <AlertDialog key={i.idVirtual}>
-            <AlertDialogTrigger asChild>
-              <Badge
-                onClick={() => setExpandedInventario(i.idVirtual)}
-                className="flex items-center gap-1 cursor-pointer"
-              >
-                Stock {i.stock_actual}
-                <Trash2
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    eliminarSiNoEstaEnUso(i.idVirtual, "inventario");
-                  }}
-                  className="h-3 w-3 text-destructive"
-                />
-              </Badge>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>¿Eliminar inventario?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Esta acción no se puede deshacer.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction
-                  className="bg-destructive"
-                  onClick={() => eliminarSiNoEstaEnUso(i.idVirtual, "inventario")}
-                >
-                  Eliminar
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        ))}
-    </div>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          {/* Sólo este botón dispara el diálogo */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation(); // evita que abra el editor
+            }}
+          >
+            <Trash2 className="h-3 w-3 text-destructive" />
+          </button>
+        </AlertDialogTrigger>
 
-    { /* — 2b) Card único para Nuevo/Editar inventario — */ }
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar inventario?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive"
+              onClick={() => eliminarSiNoEstaEnUso(i.idVirtual, "inventario")}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+    </Badge>
+  ))}
+</div>
+
+
+    {/* — Formulario de Nuevo / Editar inventario — */}
     <Card className="my-2">
       <CardHeader className="text-sm font-semibold">
         {expandedInventario === TEMP_ID ? "Nuevo inventario" : "Editar inventario"}
       </CardHeader>
       <CardContent>
         <SeccionInventarios
+          key={expandedInventario}           // <--- fuerza remonte
+
           idVirtual={expandedInventario!}
-          inv={
-            inventariosWatch.find((x) => x.idVirtual === expandedInventario)!
-          }
+           inv={
+    inventariosWatch.find(x => x.idVirtual === expandedInventario)
+    ?? DEFAULT_INV
+  }
           inventarios={inventariosWatch}
           setValue={setValue}
         />
 
         <div className="mt-4 flex justify-end gap-2">
-          <Button
-            onClick={() => {
-              const isNew = expandedInventario === TEMP_ID;
-              const idx = inventariosWatch.findIndex(
-                (i) => i.idVirtual === expandedInventario
-              );
-              if (idx === -1) return;
-              const inv = inventariosWatch[idx];
+          {/* Guardar */}
+        <Button
+        type="button"
+        onClick={() => {
+          const isNew = expandedInventario === TEMP_ID;
+          const idx = inventariosWatch.findIndex(
+            i => i.idVirtual === expandedInventario
+          );
+          if (idx === -1) return;
+          const inv = inventariosWatch[idx];
 
-              if (isNew) {
-                // 1) Convertimos el placeholder en un inventario real
-                const newId = crypto.randomUUID();
-                updateInventario(idx, { ...inv, idVirtual: newId });
-                toast.success("Inventario agregado");
-                // 2) Asociamos a la ubicación si solo hay una
-                if (ubicaciones.length === 1) {
-                  updateUbicacion(0, {
-                    ...ubicaciones[0],
-                    idVirtualInventario: [
-                      ...(ubicaciones[0].idVirtualInventario ?? []),
-                      newId,
-                    ],
-                  });
-                }
-                // 3) Creamos otro placeholder para el siguiente “Nuevo inventario”
-                appendInventario({ ...DEFAULT_INV });
-                setExpandedInventario(TEMP_ID);
-              } else {
-                // Edición de un inventario existente
-                updateInventario(idx, inv);
-                toast.success("Inventario actualizado");
-                // Volvemos al modo “Nuevo inventario” para poder crear otro
-                setExpandedInventario(TEMP_ID);
-              }
-            }}
-          >
-            💾 {expandedInventario === TEMP_ID ? "Guardar" : "Guardar cambios"}
-          </Button>
+          if (isNew) {
+            // 1) Generar UUID solo al guardar
+            const newId = crypto.randomUUID();
+
+            // 2) Reemplazar el placeholder en RHF
+            updateInventario(idx, { ...inv, idVirtual: newId });
+
+            // 3) Actualizar tu estado de chips confirmados
+            setChipsInventarios(prev => [
+              /* quitamos cualquier placeholder viejo */
+              ...prev.filter(x => x.idVirtual !== TEMP_ID),
+              /* añadimos el inventario real */
+              { ...inv, idVirtual: newId }
+            ]);
+
+            toast.success("Inventario agregado");
+
+            // 4) Si solo hay una ubicación, ligar el inventario
+            if (ubicaciones.length === 1) {
+              updateUbicacion(0, {
+                ...ubicaciones[0],
+                idVirtualInventario: [
+                  ...(ubicaciones[0].idVirtualInventario ?? []),
+                  newId,
+                ],
+              });
+            }
+
+            // 5) Crear un nuevo placeholder al final
+            appendInventario({ ...DEFAULT_INV });
+
+            // 6) Volver al modo “Nuevo”
+            setExpandedInventario(TEMP_ID);
+
+          } else {
+            // Edición de un inventario ya existente
+            updateInventario(idx, inv);
+            setChipsInventarios(prev =>
+              prev.map(x =>
+                x.idVirtual === inv.idVirtual ? inv : x
+              )
+            );
+            toast.success("Inventario actualizado");
+            setExpandedInventario(TEMP_ID);
+          }
+        }}
+      >
+        💾 {expandedInventario === TEMP_ID ? "Guardar" : "Guardar cambios"}
+      </Button>
+
+       {/* Cancelar edición */}
+<Button
+  variant="secondary"
+  type="button"
+  onClick={() => {
+    // 1) Buscamos el índice del placeholder
+    const phIdx = inventariosWatch.findIndex(i => i.idVirtual === TEMP_ID);
+    if (phIdx !== -1) {
+      // 2) Reseteamos el array a DEFAULT_INV
+      updateInventario(phIdx, { ...DEFAULT_INV });
+      // 3) Reseteamos los campos del formulario a esos mismos valores
+      Object.entries(DEFAULT_INV).forEach(([key, val]) => {
+        setValue(`inventarios.${phIdx}.${key}`, val);
+      });
+    }
+    // 4) Salimos al modo "Nuevo inventario"
+    setExpandedInventario(TEMP_ID);
+  }}
+>
+  Cancelar
+</Button>
+
         </div>
       </CardContent>
     </Card>
   </AccordionContent>
 </AccordionItem>
-      
+
+
       {/* 📍 Ubicaciones del producto */}
 
       <AccordionItem value="ubicaciones">
