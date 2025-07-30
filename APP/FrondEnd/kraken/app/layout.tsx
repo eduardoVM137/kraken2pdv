@@ -14,9 +14,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
 
   return (
     <html lang="es">
-      <body className="flex h-screen overflow-hidden">
+      <body className="flex h-screen">
         <SidebarProvider>
-          {/*— mobile drawer trigger —*/}
+
+          {/* — MOBILE: trigger + drawer — */}
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
               <button className="fixed top-4 left-4 z-50 p-2 rounded bg-white/90 shadow-md md:hidden">
@@ -28,16 +29,17 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </SheetContent>
           </Sheet>
 
-          {/*— desktop sidebar —*/}
-          <div className="hidden md:flex md:w-64">
-            <AppSidebar />
-          </div>
-
-          {/*— main content + toasts —*/}
+  
+ {/*— desktop sidebar —*/}
+ <div className="hidden md:block">
+   <AppSidebar />
+ </div>
+          {/* — MAIN CONTENT — */}
           <main className="flex-1 overflow-auto">
             {children}
             <Toaster position="top-right" richColors closeButton />
           </main>
+
         </SidebarProvider>
       </body>
     </html>

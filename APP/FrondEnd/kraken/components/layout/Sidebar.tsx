@@ -45,33 +45,36 @@ export function AppSidebar() {
   return (
     <SidebarProvider>
       <Sidebar
-        style={{ "--sidebar-width": collapsed ? "4rem" : "16rem" }}
+     style={{ "--sidebar-width": collapsed ? "4rem" : "16rem" }}
         className={`
+          flex-shrink-0
+          w-[var(--sidebar-width)]
           flex flex-col h-full bg-white border-r shadow-sm
           transition-[width] duration-200 ease-in-out
-          w-[var(--sidebar-width)]
+          p-0
         `}
       >
         {/* — Logo + toggle — */}
-        <div className="flex items-center justify-between px-3 py-4">
-          {!collapsed && (
-            <span className="text-xl font-bold tracking-tight">
-              Ferre Hogar
-            </span>
-          )}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="p-1 rounded hover:bg-gray-100"
-            aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
-          >
-            {collapsed ? (
-              <ChevronRightIcon className="w-5 h-5 text-gray-600" />
-            ) : (
-              <ChevronLeftIcon className="w-5 h-5 text-gray-600" />
-            )}
-          </button>
-        </div>
+   <div className="px-3 py-4">
 
+      
+        <button
+     onClick={() => setCollapsed(!collapsed)}
+     className="flex items-center justify-between w-full p-1 rounded hover:bg-gray-100"
+
+     aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
+   >
+     {!collapsed && (
+       <span className="text-xl font-bold tracking-tight">
+         Ferre Hogar   
+       </span>
+     )}
+     {collapsed
+       ? <ChevronRightIcon className="w-5 h-5 text-gray-600" />
+       : <ChevronLeftIcon  className="w-5 h-5 text-gray-600" />
+     }
+   </button>
+        </div>
         {/* — Menú centrado verticalmente — */}
         <SidebarContent className="flex-1 flex flex-col justify-center px-2">
           <SidebarMenu>
@@ -100,7 +103,7 @@ export function AppSidebar() {
                         <Icon
                           className={`
                             w-6 h-6 flex-shrink-0
-                            ${active ? "text-white" : "text-gray-500 group-hover:text-gray-700"}
+                            ${active ? "text-black" : "text-gray-500 group-hover:text-gray-700"}
                           `}
                         />
                         <span
