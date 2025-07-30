@@ -20,7 +20,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           {/* — MOBILE: trigger + drawer — */}
           <Sheet open={open} onOpenChange={setOpen}>
             <SheetTrigger asChild>
-              <button className="fixed top-4 left-4 z-50 p-2 rounded bg-white/90 shadow-md md:hidden">
+   <button className="fixed top-4 left-4 z-50 p-2 rounded bg-white/90 shadow-md md:hidden print:hidden">
                 <Menu className="h-6 w-6" />
               </button>
             </SheetTrigger>
