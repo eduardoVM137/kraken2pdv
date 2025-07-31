@@ -8,12 +8,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-/**
- * Componente para realizar el Corte de Caja.
- * - Captura fechas automáticamente.
- * - Obtiene totales de ventas y retiros vía API.
- * - Solo imprime el texto plano en papel de 58mm.
- */
 const CorteCajaForm: React.FC = () => {
   const [empleadoId, setEmpleadoId] = useState<number | "">("");
   const [fechaInicio, setFechaInicio] = useState<string>("");
@@ -24,30 +18,26 @@ const CorteCajaForm: React.FC = () => {
   const [totalEntregado, setTotalEntregado] = useState<number>(0);
   const preRef = useRef<HTMLPreElement>(null);
 
-  // Inicializar fechas al cargar
+  // Fechas iniciales
   useEffect(() => {
-    const now = new Date();
-    const iso = now.toISOString().slice(0, 16);
-    setFechaInicio(iso);
-    setFechaFin(iso);
+    const now = new Date().toISOString().slice(0, 16);
+    setFechaInicio(now);
+    setFechaFin(now);
   }, []);
 
-  // Pedir totales vía API
+  // Traer totales
   useEffect(() => {
-    if (fechaInicio && fechaFin) {
-      fetch(
-        `/api/corte-caja/resumen?from=${encodeURIComponent(fechaInicio)}&to=${encodeURIComponent(fechaFin)}`
-      )
-        .then((res) => res.json())
-        .then((data) => {
-          setTotalVentas(data.totalVentas ?? 0);
-          setTotalRetiros(data.totalRetiros ?? 0);
-        })
-        .catch(() => {
-          setTotalVentas(0);
-          setTotalRetiros(0);
-        });
-    }
+    if (!fechaInicio || !fechaFin) return;
+    fetch(`/api/corte-caja/resumen?from=${encodeURIComponent(fechaInicio)}&to=${encodeURIComponent(fechaFin)}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setTotalVentas(data.totalVentas ?? 0);
+        setTotalRetiros(data.totalRetiros ?? 0);
+      })
+      .catch(() => {
+        setTotalVentas(0);
+        setTotalRetiros(0);
+      });
   }, [fechaInicio, fechaFin]);
 
   // Calcular entregado
@@ -73,35 +63,46 @@ const CorteCajaForm: React.FC = () => {
 
   const handlePrint = () => {
     if (!preRef.current) return;
-    const lines: string[] = [];
-    const add = (txt = "") => lines.push(txt);
-    add("COMPROBANTE DE CORTE");
-    add("Mi Negocio S.A. de C.V.");
-    add("RFC: XXXXXXXXXXXXX");
-    add("------------------------------");
-    add(`ID Empleado: ${empleadoId}`);
-    add(`Inicio     : ${fechaInicio ? new Date(fechaInicio).toLocaleString() : "-"}`);
-    add(`Fin        : ${fechaFin ? new Date(fechaFin).toLocaleString() : "-"}`);
-    add("------------------------------");
-    add(`Fondo Init.: $${fondoInicial.toFixed(2)}`);
-    add(`Ventas     : $${totalVentas.toFixed(2)}`);
-    add(`Retiros    : $${totalRetiros.toFixed(2)}`);
-    add("------------------------------");
-    add(`Entregado  : $${totalEntregado.toFixed(2)}`);
-    add("------------------------------");
-    add("Este comprobante no tiene valor fiscal.");
-    add("");
-    add("Firma: ________________");
-    add("");
-    add(`Emitido: ${new Date().toLocaleString()}`);
-
-    preRef.current.textContent = lines.join("\n");
+    const lines = [
+      "COMPROBANTE DE CORTE",
+      "Mi Negocio S.A. de C.V.",
+      "RFC: XXXXXXXXXXXXX",
+      "------------------------------",
+      `ID Empleado: ${empleadoId}`,
+      `Inicio     : ${fechaInicio ? new Date(fechaInicio).toLocaleString() : "-"}`,
+      `Fin        : ${fechaFin    ? new Date(fechaFin).toLocaleString()     : "-"}`,
+      "------------------------------",
+      `Fondo Init.: $${fondoInicial.toFixed(2)}`,
+      `Ventas     : $${totalVentas.toFixed(2)}`,
+      `Retiros    : $${totalRetiros.toFixed(2)}`,
+      "------------------------------",
+      `Entregado  : $${totalEntregado.toFixed(2)}`,
+      "------------------------------",
+      "Este comprobante no tiene valor fiscal.",
+      "Firma: ________________",
+      `Emitido: ${new Date().toLocaleString()}`,
+    ];
+    preRef.current.textContent = lines.join("\n").trimEnd();
     window.print();
   };
 
   return (
     <>
-      {/* ——— UI solo en pantalla ——— */}
+      {/* inyectamos SOLO @page para la impresora */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: 58mm auto portrait;
+            margin: 0;
+          }
+          body {
+            margin: 0;
+            padding: 0;
+          }
+        }
+      `}</style>
+
+      {/* — Pantalla: todo menos el pre — */}
       <div className="space-y-6 p-6 print:hidden">
         <Card className="max-w-lg mx-auto">
           <CardHeader>
@@ -112,9 +113,7 @@ const CorteCajaForm: React.FC = () => {
             <Input
               type="number"
               value={empleadoId}
-              onChange={(e) =>
-                setEmpleadoId(e.target.value === "" ? "" : +e.target.value)
-              }
+              onChange={(e) => setEmpleadoId(e.target.value === "" ? "" : +e.target.value)}
             />
             <Label>Fecha y Hora Inicio</Label>
             <Input
@@ -142,7 +141,6 @@ const CorteCajaForm: React.FC = () => {
             <Input type="number" value={totalRetiros} readOnly />
             <Label>Total Entregado</Label>
             <Input type="number" value={totalEntregado} readOnly />
-
             <div className="flex justify-between pt-4">
               <Button onClick={handleCloseCaja}>Cerrar Caja</Button>
               <Button variant="outline" onClick={handlePrint}>
@@ -153,11 +151,22 @@ const CorteCajaForm: React.FC = () => {
         </Card>
       </div>
 
-      {/* ——— Comprobante solo en impresión ——— */}
-      <pre
-        ref={preRef}
-        className="hidden print:block font-mono whitespace-pre-wrap m-0 p-0"
-      />
+      {/* — Impresión: sólo este <pre> — */}
+<pre
+  ref={preRef}
+  className={`
+    hidden
+    print:block
+    font-mono
+    text-[8px]
+    leading-tight
+    whitespace-pre-wrap
+    m-0
+    p-0
+  `}
+/>
+
+
     </>
   );
 };

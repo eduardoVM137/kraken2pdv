@@ -34,7 +34,7 @@ import {
 } from "@/components/ui/table";
 
 import Papa from "papaparse";
-import PricePopover from "../compras/components/price-popover/PricePopover";   // ⬅️ pop-over modular
+import PricePopover from "./components/price-popover/PricePopover";   // ⬅️ pop-over modular
 
 /* ╭──────────────────────────────────────────────────────────╮
    │                       TIPOS                              │
