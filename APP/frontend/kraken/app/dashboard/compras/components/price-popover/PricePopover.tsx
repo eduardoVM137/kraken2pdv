@@ -16,6 +16,8 @@ import useToggle from "@/hooks/useToggle";
 export type Price = {
   precio_id: number;
   producto_ubicacion_id: number;
+    inventario_id: number; // 👈 asegúrate que lo recibes y mapeas desde backend
+
   precio_venta: number;
   precio_costo: number;
   ubicacion_nombre: string;
@@ -53,7 +55,11 @@ export default function PricePopover({
 
   const asignadas = Object.values(distrib[rowId] ?? {}).reduce((a, b) => a + b, 0);
   const libres = piezasTot - asignadas;
-
+console.table(priceList.map(p => ({
+  ubicacion: p.ubicacion_nombre,
+  prodUbic: p.producto_ubicacion_id,
+  inventario: p.inventario_id
+})));
   const visibles = useMemo(() =>
     priceList.filter(p =>
       p.ubicacion_nombre.toLowerCase().includes(search.toLowerCase())
@@ -70,12 +76,30 @@ export default function PricePopover({
       setHasChanges(false);
     }
   }, [open]);
+ 
+ const handleSave = () => {
+  const mappedDistrib: Record<number, number> = {};
 
-  const handleSave = () => {
-    setPreciosEditados(prev => ({ ...prev, ...tempPrices }));
-    setDistrib(prev => ({ ...prev, [rowId]: tempDistrib }));
-    setOpen(false);
-  };
+  Object.entries(tempDistrib).forEach(([prodUbicIdStr, piezas]) => {
+    const prodUbicId = +prodUbicIdStr;
+
+    const match = priceList.find(p => p.producto_ubicacion_id === prodUbicId);
+
+    if (match?.inventario_id) {
+      mappedDistrib[match.inventario_id] = piezas; // 👈 esta es la clave del éxito
+    } else {
+      alert(`❌ No se encontró inventario_id para producto_ubicacion_id ${prodUbicId}`);
+    }
+  });
+console.log("Distrib final:", mappedDistrib);
+
+  setDistrib(prev => ({ ...prev, [rowId]: mappedDistrib }));
+  setPreciosEditados(prev => ({ ...prev, ...tempPrices }));
+  setOpen(false);
+};
+
+
+
 
   const handleClose = () => {
     if (hasChanges) setShowConfirm(true);

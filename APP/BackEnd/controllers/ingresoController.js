@@ -27,15 +27,24 @@ export const mostrarIngresosController = async (req, res, next) => {
     next(error);
   }
 };
-
 export const insertarIngresoController = async (req, res, next) => {
   try {
-    const exito = await insertarIngresoService(req.body);
-    res.status(exito ? 201 : 400).json({ message: exito ? "Creado" : "Falló" });
+    const id = await insertarIngresoService(req.body);
+    // Devolvemos el nuevo id para que el front lo reciba en data.id
+    res.status(201).json({ id });
   } catch (error) {
     next(error);
   }
 };
+
+// export const insertarIngresoController = async (req, res, next) => {
+//   try {
+//     const exito = await insertarIngresoService(req.body);
+//     res.status(exito ? 201 : 400).json({ message: exito ? "Creado" : "Falló" });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
 
 export const editarIngresoController = async (req, res, next) => {
   try {

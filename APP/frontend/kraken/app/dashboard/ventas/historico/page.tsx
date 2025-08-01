@@ -52,6 +52,9 @@ import VentaFilters from "./components/VentaFilters";
 import VentaPagination from "./components/VentaPagination";
 import VentaDetalle, { Detalle } from "./components/VentaDetalle";
 import VentaTrazabilidad, { StateLog } from "./components/VentaTrazabilidad"; 
+
+import Link from "next/link";
+
 interface Venta {
   id: number;
   fecha: string;
@@ -300,6 +303,9 @@ export default function HistoricoVentasPage() {
       <Button onClick={() => window.print()} size="sm" variant="outline">
         <Printer className="mr-1 h-4 w-4"/> Imprimir
       </Button>
+       <Link href="/dashboard/ventas">
+                <Button variant="outline">Regresar a Ventas</Button>
+              </Link>
     </div>
   </div>
 

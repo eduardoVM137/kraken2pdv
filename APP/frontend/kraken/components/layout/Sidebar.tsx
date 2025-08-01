@@ -31,7 +31,6 @@ const MENU: MenuItem[] = [
   { href: "/dashboard/ventas",        label: "Ventas",        icon: HomeIcon },
   { href: "/dashboard/compras",       label: "Compras",       icon: ShoppingCartIcon },
   { href: "/dashboard/corte-caja",    label: "Corte Caja",    icon: CreditCardIcon },
-  { href: "/dashboard/corte-caja/componentes",    label: "Corte Caja- Historico",    icon: CreditCardIcon },
   { href: "/dashboard/productos",     label: "Productos",     icon: BoxIcon },
   { href: "/dashboard/configuracion", label: "Configuración", icon: SettingsIcon, group: "settings" },
 ];

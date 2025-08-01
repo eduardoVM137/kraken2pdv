@@ -26,7 +26,7 @@ interface Props {
   open: boolean;
   setOpen: (v: boolean) => void;
   total: number;
-  handleCobrar: (pagos: Pago[]) => void;
+  handleCobrar: (pagos: Pago[],imprimir: boolean) => void;
   disabled?: boolean;
 }
 
@@ -41,6 +41,7 @@ export default function ModalCobro({
   const [metodo, setMetodo] = useState<string>("Efectivo");
   const [monto, setMonto] = useState<string>(total.toFixed(2));
   const inputRef = useRef<HTMLInputElement>(null);
+const [imprimir, setImprimir] = useState(true);
 
   // cálculos
   const abonado = pagos.reduce((s, p) => s + p.monto, 0);
@@ -73,12 +74,22 @@ export default function ModalCobro({
     inputRef.current?.select();
   };
 
-  const doCobrar = () => {
-    const lista = pagos.length > 0 ? pagos : [{ metodo, monto: montoNum }];
-    handleCobrar(lista);
-    setPagos([]);
-    setOpen(false);
-  };
+ const doCobrar = () => {
+  const pagosFinales = [...pagos];
+
+  if (montoNum > 0) {
+    pagosFinales.push({ metodo, monto: montoNum });
+  }
+
+handleCobrar(pagosFinales, imprimir);
+
+  setPagos([]);
+  setMonto("0.00"); // limpia el input
+  setImprimir(true); // ← esto lo reinicia
+
+  setOpen(false);
+};
+
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -168,6 +179,19 @@ export default function ModalCobro({
             ${restante.toFixed(2)}
           </span>
         </div>
+       <div className="flex items-center space-x-2">
+  <input
+    type="checkbox"
+    id="imprimir"
+    checked={imprimir}
+    onChange={(e) => setImprimir(e.target.checked)}
+    className="accent-black w-4 h-4"
+  />
+  <label htmlFor="imprimir" className="text-sm select-none">
+    Imprimir
+  </label>
+</div>
+
 
         {/* Botón Cobrar */}
         <Button

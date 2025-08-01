@@ -5,13 +5,14 @@
  
 
 "use client";
+import Link from "next/link";
 
 import {
-  useState,
-  useMemo,
-  useCallback,
-  ChangeEvent,
-  useEffect,
+   useState,
+   useMemo,
+   useCallback,
+   ChangeEvent,
+   useEffect,
 } from "react";
 
 import { Input }    from "@/components/ui/input";
@@ -59,6 +60,8 @@ interface DetalleExtendido {
     precio_costo: number;
     ubicacion_nombre: string;
     producto_ubicacion_id: number;   
+        inventario_id: number; // ✅ AGREGA ESTO
+
   }[];
   inventarios: {
     ubicacion_nombre: string;
@@ -100,32 +103,30 @@ export default function ComprasPage () {
   const [distrib, setDistrib] = useState<Record<string,Record<number,number>>>({});
 
   const [mostrarUnit, setMostrarUnit] = useState(false);
-
   /* ───── filtros / totales ───── */
-  const productosFiltrados = useMemo(()=>{
+  const productosFiltrados = useMemo(() => {
     const f = filtro.toLowerCase();
     return filtro
-      ? productos.filter(p=>p.nombre.toLowerCase().includes(f)||p.codigoBarras.includes(f))
+      ? productos.filter(p => p.nombre.toLowerCase().includes(f) || p.codigoBarras.includes(f))
       : productos;
-  },[productos,filtro]);
+  }, [productos, filtro]);
 
-  const { subtotal, impuesto } = useMemo(()=>{
-    return productosFiltrados.reduce((acc,p)=>{
+  const { subtotal, impuesto } = useMemo(() => {
+    return productosFiltrados.reduce((acc, p) => {
       const piezas = p.cantidad * p.cantidadPorPresentacion;
       const base   = p.precioActual * piezas;
       acc.subtotal += base;
-      acc.impuesto += base * (p.iva/100);
+      acc.impuesto += base * (p.iva / 100);
       return acc;
-    },{subtotal:0,impuesto:0});
-  },[productosFiltrados]);
-
+    }, { subtotal: 0, impuesto: 0 });
+  }, [productosFiltrados]);
   /* ╭──────────────────────────────────────────────╮
      │           MUTACIONES helpers                 │
-     ╰──────────────────────────────────────────────╯ */
-  const setProdField = (rowId:string, patch:Partial<Producto>) =>
-    setProductos(prev=>prev.map(p=>p.rowId===rowId?{...p,...patch}:p));
-  const borrarProd   = (rowId:string) =>
-    setProductos(prev=>prev.filter(p=>p.rowId!==rowId));
+     ╰──────────────────────────────────────────────╯ */ 
+     const setProdField = (rowId: string, patch: Partial<Producto>) =>
+    setProductos(prev => prev.map(p => p.rowId === rowId ? { ...p, ...patch } : p));
+  const borrarProd = (rowId: string) =>
+    setProductos(prev => prev.filter(p => p.rowId !== rowId));
 
   /* ╭──────────────────────────────────────────────╮
      │        ALTA producto por código / CSV        │
@@ -198,10 +199,12 @@ export default function ComprasPage () {
           })),
           precios:data.map((i:any)=>({
             precio_id: i.precio_id,
+              producto_ubicacion_id: i.producto_ubicacion_id,
+
+              inventario_id: i.inventario_id, // 👈 nuevo campo capturado
             precio_venta:+i.precio_venta,
             precio_costo:+i.precio_costo,
-            ubicacion_nombre:i.ubicacion_nombre,
-            producto_ubicacion_id:i.producto_ubicacion_id, 
+            ubicacion_nombre:i.ubicacion_nombre, 
           })),
         };
       }catch(e){console.error(e);}
@@ -212,7 +215,7 @@ export default function ComprasPage () {
   useEffect(()=>{
     if(productos.length) cargarDetalles(productos);
   },[productos,cargarDetalles]);
-
+ 
   /* ╭──────────────────────────────────────────────╮
      │         CAMBIOS de precio enviados           │
      ╰──────────────────────────────────────────────╯ */
@@ -225,13 +228,116 @@ export default function ComprasPage () {
     });
     return arr;
   },[preciosEditados,productos,detalles]);
+   const handleSubmit = async () => {
+    // 1) Validar distribución
+    const pendiente = productos.some(p => {
+      const tot   = p.cantidad * p.cantidadPorPresentacion;
+      const asign = Object.values(distrib[p.rowId] ?? {}).reduce((a, b) => a + b, 0);
+      return tot !== asign;
+    });
+    if (pendiente) {
+      alert("Faltan piezas por asignar");
+      return;
+    }
+    // 2) Construir payload
+   const payload = {
+  factura,
+  proveedor,
+  total: subtotal + impuesto,
+  iva: impuesto,
+  pagado: false,
+  detalles: productos.map(p => {
+    const dist = distrib[p.rowId];
+    const map = detalles[p.rowId]?.precios ?? [];
+    
+    const distCorrecta = Object.fromEntries(
+      Object.entries(dist ?? {}).map(([k, v]) => {
+        const pr = map.find(pr => pr.producto_ubicacion_id === +k);
+        return [pr?.inventario_id ?? k, v];
+      })
+    );
+
+    return {
+      detalle_producto_id: p.id,
+      cantidad: p.cantidad,
+      precio_venta: p.precioActual,
+      iva: p.iva,
+      presentacion_id: p.presentacionId,
+      distribucion: distCorrecta,
+    };
+  }),
+};
+    try {
+      const res = await fetch(`${API}/api/ingreso`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      alert(`Compra registrada (ID: ${data.id})`);
+
+      // 3) Limpiar estados
+      setProductos([]);
+      setPreciosEditados({});
+      setDistrib({});
+    } catch (error) {
+      console.error("Error guardando compra:", error);
+      alert("Error al guardar la compra. Revisa la consola.");
+    }
+  };
+  const repartirTodoEquitativo = () => {
+  const nuevaDistrib: Record<string, Record<number, number>> = {};
+
+  productos.forEach((p) => {
+    const piezasTot = p.cantidad * p.cantidadPorPresentacion;
+    const ubicaciones = detalles[p.rowId]?.precios ?? [];
+
+    // Si solo hay una ubicación, asignar todas las piezas ahí
+    if (ubicaciones.length === 1) {
+      const pr = ubicaciones[0];
+      nuevaDistrib[p.rowId] = {
+        [pr.producto_ubicacion_id]: piezasTot,
+      };
+    } 
+    // Si hay más de una, repartir equitativamente
+    else if (ubicaciones.length > 1) {
+      const base = Math.floor(piezasTot / ubicaciones.length);
+      let sobrante = piezasTot % ubicaciones.length;
+
+      const distribucion: Record<number, number> = {};
+      ubicaciones.forEach((pr) => {
+        const extra = sobrante > 0 ? 1 : 0;
+        distribucion[pr.producto_ubicacion_id] = base + extra;
+        if (sobrante > 0) sobrante--;
+      });
+
+      nuevaDistrib[p.rowId] = distribucion;
+    }
+  });
+
+  setDistrib(nuevaDistrib);
+};
+
 
   /* ╭──────────────────────────────────────────────╮
      │                  RENDER                      │
      ╰──────────────────────────────────────────────╯ */
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 space-y-8">
-      <h1 className="text-3xl font-bold">Panel de Compras</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold">Panel de Compras</h1>
+        
+      <div className="flex items-center gap-2">
+        <Button variant="outline" onClick={repartirTodoEquitativo}>
+          ⚖ Repartir todo
+        </Button>
+        <Link href="/dashboard/compras/historico">
+          <Button variant="outline">Ver Histórico</Button>
+        </Link>
+        
+      </div>
+      </div>
 
       {/* ——— cabecera ——— */}
       <section className="grid gap-4 sm:grid-cols-3">
@@ -276,22 +382,15 @@ export default function ComprasPage () {
       <Totales
         subtotal={subtotal}
         impuesto={impuesto}
-        onSubmit={async()=>{
-          /* verifica distribución correcta */
-          const pendiente = productos.some(p=>{
-            const tot = p.cantidad*p.cantidadPorPresentacion;
-            const asign = Object.values(distrib[p.rowId]??{}).reduce((a,b)=>a+b,0);
-            return tot!==asign;
-          });
-          if(pendiente){alert("Faltan piezas por asignar");return;}
-
-          // …llamadas a backend (guardarCompra + actualizar-lote)…
-          alert("Compra registrada");
-        }}
+        onSubmit={handleSubmit}
       />
     </main>
   );
 }
+
+
+
+
 
 /* ╭──────────────────────────────────────────────────────────╮
    │                SUB-COMPONENTES UI                        │
@@ -343,9 +442,12 @@ function Toolbar({filtro,setFiltro,onCSV,mostrarUnit,toggleUnit}:{filtro:string;
         <Button asChild variant="secondary"><label htmlFor="csv" className="cursor-pointer">Importar CSV</label></Button>
         <Button variant="outline" onClick={toggleUnit}>{mostrarUnit?"Ocultar detalles":"Ver detalles"}</Button>
       </div>
+      
     </section>
+    
   );
 }
+
 
 /* ——— tabla principal ——— */
 function TablaCompras(props:{

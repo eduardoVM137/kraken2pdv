@@ -8,6 +8,8 @@ import { Eye, BarChart2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 
+import Link from "next/link";
+
 interface CorteCaja {
   idcorte_caja: number;
   idempleado_usuario: number;
@@ -66,6 +68,9 @@ const CorteCajaHistorico: React.FC = () => {
           <Input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-36" />
         </div>
         <Button onClick={fetchData}>Aplicar</Button>
+          <Link href="/dashboard/corte-caja">
+            <Button variant="outline">ir a caja</Button>
+          </Link>
       </div>
 
       <div className="overflow-auto rounded-md border bg-white shadow">

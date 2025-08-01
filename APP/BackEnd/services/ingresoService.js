@@ -3,17 +3,90 @@ import { Ingreso } from "../models/ingreso.js";
 import { DetalleIngreso } from "../models/detalle_ingreso.js";
 import { Proveedor } from "../models/proveedor.js";
 import { DetalleProducto } from "../models/detalle_producto.js";
+import { Inventario } from "../models/inventario.js";
 import { eq, and, between, gte, lte, like, sql } from "drizzle-orm";
+import { MovimientoStock } from "../models/movimiento_stock.js";
 
 
 export const mostrarIngresosService = async () => {
   return await db.select().from(Ingreso);
-};
+}; 
 
-export const insertarIngresoService = async (data) => {
-  const [nuevo] = await db.insert(Ingreso).values(data).returning();
-  return !!nuevo;
-};
+
+export async function insertarIngresoService(data) {
+  return await db.transaction(async tx => {
+    const [ingreso] = await tx
+      .insert(Ingreso)
+      .values({
+        factura:      data.factura,
+        proveedor_id: data.proveedor_id,
+        total:        data.total,
+        iva:          data.iva,
+        pagado:       data.pagado,
+        metodo_pago:  data.metodo_pago || null,
+        comprobante:  data.comprobante || null,
+        state_id:     data.state_id || null
+      })
+      .returning({ id: Ingreso.id });
+
+    await Promise.all(
+      data.detalles.map(async (d) => {
+        // Insertar detalle de ingreso
+        await tx.insert(DetalleIngreso).values({
+          ingreso_id:          ingreso.id,
+          detalle_producto_id: d.detalle_producto_id,
+          cantidad:            d.cantidad,
+          precio_costo:        d.precio_venta,
+          subtotal:            d.cantidad * d.precio_venta
+        });
+
+        // Recorrer distribución por inventario_id
+        for (const [inventarioIdStr, cantidad] of Object.entries(d.distribucion ?? {})) {
+          const inventario_id = +inventarioIdStr;
+
+          // 1. Validar existencia y relación con el detalle_producto
+          const inv = await tx.query.Inventario.findFirst({
+            where: and(
+              eq(Inventario.id, inventario_id),
+              eq(Inventario.detalle_producto_id, d.detalle_producto_id)
+            )
+          });
+
+          if (!inv) {
+            throw new Error(`Inventario ID ${inventario_id} no válido para producto ${d.detalle_producto_id}`);
+          }
+
+          // 2. Actualizar stock
+          await tx.update(Inventario)
+            .set({
+              stock_actual: sql`${Inventario.stock_actual} + ${cantidad}`,
+              actualizado_en: new Date()
+            })
+            .where(eq(Inventario.id, inventario_id));
+
+          // 3. Registrar movimiento de stock
+        await tx.insert(MovimientoStock).values({
+  empresa_id: 1,
+  producto_id: 1,                      // si no lo tienes directo, lo puedes buscar
+  detalle_producto_id: d.detalle_producto_id,
+  ubicacion_id: inv.ubicacion_fisica_id,
+  cantidad,
+  precio_costo: d.precio_venta,                      // o usar `inv.precio_costo` si lo prefieres
+  tipo_movimiento: "COMPRA",
+  motivo: `Ingreso por factura ${data.factura}`,
+  usuario_id: data.usuario_id || null,
+  fecha: new Date(),
+  referencia_tipo: "ingreso",
+  referencia_id: ingreso.id
+});
+
+        }
+      })
+    );
+
+    return ingreso.id;
+  });
+}
 
 export const editarIngresoService = async (id, data) => {
   const [actualizado] = await db.update(Ingreso).set(data).where(eq(Ingreso.id, id)).returning();

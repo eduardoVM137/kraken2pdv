@@ -14,10 +14,11 @@ import {
   ContextMenuItem,
 } from "@/components/ui/context-menu";
 import TablaVenta from "@/components/TablaVenta";
-import ModalCobro from "./ModalCobro";
-import { generarTicketPDF } from "@/app/utils/generarTicket";
+import ModalCobro from "./ModalCobro"; 
 
 import { ProductoVenta, VentaPendiente } from "./types";
+
+import Link from "next/link";
 
 interface Props {
   cliente: string;
@@ -38,7 +39,12 @@ interface Props {
   total: number;
   pagos: { metodo: string; monto: number }[];
   setPagos: (v: any) => void;
-  handleCobrar: (pagosSeleccionados: { metodo: string; monto: number }[]) => void;
+handleCobrar: (
+  pagosSeleccionados: { metodo: string; monto: number }[],
+  imprimir: boolean
+) => void;
+ handleImprimirCotizacion: () => void;
+
 }
 
 export default function ResumenVenta(props: Props) {
@@ -61,14 +67,12 @@ export default function ResumenVenta(props: Props) {
     total,
     pagos,
     setPagos,
-    handleCobrar,
+    handleCobrar,handleImprimirCotizacion,
   } = props;
 
   const [showPendientes, setShowPendientes] = useState(true);
 
-  const handleImprimirCotizacion = () => {
-    generarTicketPDF(venta, pagos, total, 0, true);
-  };
+ 
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -76,6 +80,9 @@ export default function ResumenVenta(props: Props) {
       <div className="p-4 space-y-4">
         <h2 className="text-xl font-semibold">Resumen de venta</h2>
         <div className="flex flex-wrap gap-2">
+             <Link href="/dashboard/ventas/historico">
+                    <Button variant="outline">ir a historico</Button>
+                  </Link>
           <Input
             placeholder="Cliente"
             value={cliente}
@@ -197,7 +204,7 @@ export default function ResumenVenta(props: Props) {
           total={total}
           pagos={pagos}
           setPagos={setPagos}
-          handleCobrar={(pagosSeleccionados) => handleCobrar(pagosSeleccionados)}
+handleCobrar={(pagosSeleccionados, imprimir) => handleCobrar(pagosSeleccionados, imprimir)}
           disabled={venta.length === 0}
         />
       </div>
