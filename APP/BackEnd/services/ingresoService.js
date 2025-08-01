@@ -118,17 +118,7 @@ export const buscarIngresosService = async (filtros = {}) => {
   return await query;
 };
 
-// 2. Ver detalle completo de una compra
-export const obtenerDetalleCompraService = async (ingresoId) => {
-  const ingreso = await db.select().from(Ingreso).where(eq(Ingreso.id, ingresoId)).limit(1);
-  const detalle = await db
-    .select({ ...DetalleIngreso, producto: DetalleProducto.nombre_calculado })
-    .from(DetalleIngreso)
-    .innerJoin(DetalleProducto, eq(DetalleIngreso.detalle_producto_id, DetalleProducto.id))
-    .where(eq(DetalleIngreso.ingreso_id, ingresoId));
 
-  return { ingreso: ingreso[0], productos: detalle };
-};
 
 // 3. Pendientes por completar
 export const listarIngresosPendientesService = async () => {
@@ -222,6 +212,44 @@ export const promedioCantidadPorProductoService = async () => {
     ORDER BY promedio_cantidad DESC
   `);
 };
+
+ 
+// Retorna una compra con sus detalles y el nombre del producto
+
+  export const getDetalleIngresoByIdService = async (ingresoId) => {
+  const ingreso = await db
+    .select()
+    .from(Ingreso)
+    .where(eq(Ingreso.id, ingresoId))
+    .limit(1);
+
+  if (ingreso.length === 0) {
+    return { ingreso: null, detalles: [] };
+  }
+
+  const detalles = await db
+    .select({
+      detalle_ingreso_id: DetalleIngreso.id,
+      detalle_producto_id: DetalleIngreso.detalle_producto_id,
+      cantidad: DetalleIngreso.cantidad,
+      precio_venta: DetalleIngreso.precio_costo,
+      subtotal: DetalleIngreso.subtotal,
+      nombre_calculado: DetalleProducto.nombre_calculado,
+    })
+    .from(DetalleIngreso)
+    .innerJoin(
+      DetalleProducto,
+      eq(DetalleIngreso.detalle_producto_id, DetalleProducto.id)
+    )
+    .where(eq(DetalleIngreso.ingreso_id, ingresoId));
+
+  return {
+    ingreso: ingreso[0],
+    detalles,
+  };
+};
+
+
 
 // 11. Compras repetidas en poco tiempo
 export const comprasRepetidasService = async () => {

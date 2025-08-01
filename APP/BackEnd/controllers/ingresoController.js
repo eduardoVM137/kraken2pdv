@@ -5,7 +5,6 @@ import {
   editarIngresoService,
   eliminarIngresoService,
   buscarIngresosService,
-  obtenerDetalleCompraService,
   listarIngresosPendientesService,
   listarIngresosCanceladosService,
   compararPreciosPorProductoService,
@@ -15,7 +14,7 @@ import {
   productosConPrecioBajoService,
   promedioCantidadPorProductoService,
   comprasRepetidasService,
-  analisisProductoComprasService
+  analisisProductoComprasService,getDetalleIngresoByIdService 
 } from "../services/ingresoService.js";
 
 
@@ -80,12 +79,20 @@ export const buscarIngresosController = async (req, res, next) => {
 // Ver detalle de compra
 export const detalleIngresoController = async (req, res, next) => {
   try {
-    const data = await obtenerDetalleCompraService(Number(req.params.id));
-    res.status(200).json({ data });
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+
+    const resultado = await getDetalleIngresoByIdService(id);
+
+    if (!resultado || !resultado.ingreso)
+      return res.status(404).json({ message: "Ingreso no encontrado" });
+
+    res.status(200).json(resultado);
   } catch (error) {
     next(error);
   }
 };
+
 
 // Pendientes
 export const ingresosPendientesController = async (_req, res, next) => {
@@ -156,7 +163,7 @@ export const productosPrecioBajoController = async (_req, res, next) => {
     next(error);
   }
 };
-
+ 
 // Promedio de cantidad por producto
 export const promedioCantidadController = async (_req, res, next) => {
   try {

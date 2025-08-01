@@ -1,6 +1,6 @@
 import { mysqlTable, serial, int, varchar, datetime } from "drizzle-orm/mysql-core";
-import { relations } from "drizzle-orm";
-import { State } from "./state.js";
+// import { relations } from "drizzle-orm";
+// import { State } from "./state.js";
 
 export const DetalleState = mysqlTable("detalle_state", {
   iddetalle_state: serial("iddetalle_state").primaryKey(),
@@ -10,9 +10,9 @@ export const DetalleState = mysqlTable("detalle_state", {
   estado: varchar("estado", { length: 100 }).notNull(),
 });
 
-export const DetalleStateRelations = relations(DetalleState, ({ one }) => ({
-  state: one(State, {
-    fields: [DetalleState.idstate],
-    references: [State.id],
-  }),
-}));
+// export const DetalleStateRelations = relations(DetalleState, ({ one }) => ({
+//   state: one(State, {
+//     fields: [DetalleState.idstate],
+//     references: [State.id],
+//   }),
+// }));
