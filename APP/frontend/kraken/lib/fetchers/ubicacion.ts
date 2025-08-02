@@ -1,21 +1,30 @@
- export async function getUbicacionDetallada(detalleProductoId: number) {
+// ✅ lib/fetchers/ubicacion.ts - Fetcher modular y documentado para ubicaciones físicas
+
+import { apiGet } from "../api";
+
+/**
+ * Representa una ubicación física específica donde se encuentra un producto.
+ */
+export interface UbicacionDetallada {
+  id: number;
+  nombre_celda: string;
+  nombre_estante: string;
+  nombre_ubicacion: string;
+  stock: number;
+  activo: boolean;
+}
+
+/**
+ * Obtiene las ubicaciones detalladas en las que está asignado un producto.
+ * @param detalleProductoId ID del detalle del producto a consultar
+ * @returns Lista de ubicaciones con información estructurada
+ */
+export async function getUbicacionDetallada(detalleProductoId: number): Promise<UbicacionDetallada[]> {
   try {
-    const res = await fetch(`http://localhost:3001/api/celda/ubicacion-detallada/${detalleProductoId}`)
-
-    if (!res.ok) {
-      throw new Error(`❌ Error ${res.status} al obtener ubicación detallada`)
-    }
-
-    const data = await res.json()
-
-    if (Array.isArray(data.data)) {
-      return data.data
-    }
-
-    console.error("❌ Respuesta inesperada (ubicación):", data)
-    return []
+    const data = await apiGet(`/api/celda/ubicacion-detallada/${detalleProductoId}`, "getUbicacionDetallada");
+    return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error("❌ Error al obtener ubicación detallada:", error)
-    return []
+    console.error("❌ Error en getUbicacionDetallada:", error);
+    return [];
   }
 }

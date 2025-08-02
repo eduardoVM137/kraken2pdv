@@ -3,7 +3,10 @@ export function generarLineasPOS(
   pagos: { metodo: string; monto: number }[],
   total: number,
   totalPagado: number,
-  isCotizacion = false
+  isCotizacion = false,
+  folio?: number,
+  cliente?: string,
+  vendedor?: string
 ): string[] {
   const lineas: string[] = [];
 
@@ -25,6 +28,13 @@ export function generarLineasPOS(
   lineas.push(center("Ferre Hogar Olivos 1"));
   lineas.push(center("Bulevard Rea #10302"));
   lineas.push(center(isCotizacion ? "COTIZACION" : "VENTA"));
+if (!isCotizacion && folio != null) {
+  lineas.push(`Folio: #${folio}`);
+  lineas.push(`Vendedor: ${vendedor}`);
+  lineas.push(`Cliente: ${cliente}`);
+}
+ 
+
   lineas.push(center(new Date().toLocaleString()));
   lineas.push(repeat());
 
@@ -48,7 +58,8 @@ export function generarLineasPOS(
   lineas.push(padTotal("TOTAL", `$${total.toFixed(2)}`));
   if (!isCotizacion) {
     lineas.push(padTotal("PAGO", `$${totalPagado.toFixed(2)}`));
-    lineas.push(padTotal("CAMBIO", `$${(total - totalPagado).toFixed(2)}`));
+    
+    lineas.push(padTotal("CAMBIO", `$${(totalPagado - total).toFixed(2)}`));
   }
 
   // Formas de pago

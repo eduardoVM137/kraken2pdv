@@ -59,6 +59,7 @@ export default function VentasPage() {
 
   // ─── Ventas pendientes (drafts) ───────────────────────────
   const [ventasPendientes, setVentasPendientes] = useState<any[]>([]);
+ 
 
   // Carga inicial de ventas pendientes desde localStorage
   useEffect(() => {
@@ -108,16 +109,28 @@ export default function VentasPage() {
       })
       .catch(console.error);
   }, []);
+// Nuevo filtrado reactivo local y api alias
+ useEffect(() => {
+  const term = busqueda.trim().toLowerCase();
 
-  // Filtrado dinámico de productos
-  useEffect(() => {
-    const term = busqueda.trim().toLowerCase();
-    if (buscarPorAlias && term) {
-      buscarProductosPorAlias(term).then(setProductos).catch(console.error);
-    } else if (!term) {
-      setProductos(productosOriginales);
-    }
-  }, [busqueda, buscarPorAlias, productosOriginales]);
+  if (!term) {
+    setProductos(productosOriginales);
+    return;
+  }
+
+  if (buscarPorAlias) {
+    buscarProductosPorAlias(term)
+      .then(setProductos)
+      .catch(console.error);
+  } else {
+    const resultados = productosOriginales.filter((p) =>
+      p.nombre_calculado?.toLowerCase().includes(term)
+    );
+    setProductos(resultados);
+  }
+
+  setPaginaActual(1);
+}, [busqueda, buscarPorAlias, productosOriginales]);
 
   // Manejo de Enter en buscador
   const handleSearchEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -301,13 +314,17 @@ const handleCobrar = async (
     localStorage.removeItem("ventaDraft");
   if (imprimir) {
     // 2) Imprimir con diseño nuevo
-    const lineas = generarLineasPOS(
-      venta,
-      pagosSeleccionados,
-      total,
-      totalPagado,
-      false // venta real
-    );
+   const lineas = generarLineasPOS(
+  venta,
+  pagosSeleccionados,
+  total,
+  totalPagado,
+  false,
+  nuevaVenta.id,
+  cliente,
+  vendedor
+);
+
     const opciones: OpcionesImpresion = { nombreImpresora, tamanoPapel };
 
     try {

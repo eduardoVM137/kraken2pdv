@@ -73,22 +73,29 @@ const [imprimir, setImprimir] = useState(true);
     inputRef.current?.focus();
     inputRef.current?.select();
   };
-
- const doCobrar = () => {
+const doCobrar = () => {
   const pagosFinales = [...pagos];
 
   if (montoNum > 0) {
     pagosFinales.push({ metodo, monto: montoNum });
   }
 
-handleCobrar(pagosFinales, imprimir);
+  const totalAbonado = pagosFinales.reduce((s, p) => s + p.monto, 0);
+
+  if (totalAbonado < total) {
+    const continuar = window.confirm(
+      `⚠️ El total abonado ($${totalAbonado.toFixed(2)}) es menor al total a pagar ($${total.toFixed(2)}).\n\n¿Deseas continuar con la venta de todos modos?`
+    );
+    if (!continuar) return;
+  }
+
+  handleCobrar(pagosFinales, imprimir);
 
   setPagos([]);
-  setMonto("0.00"); // limpia el input
-  setImprimir(true); // ← esto lo reinicia
-
+  setMonto("0.00");
+  setImprimir(true);
   setOpen(false);
-};
+}; 
 
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -173,12 +180,18 @@ handleCobrar(pagosFinales, imprimir);
         </div>
 
         {/* Restante */}
-        <div className="flex justify-between text-xl font-semibold">
-          <span>Restante:</span>
-          <span className={restante < 0 ? "text-red-600" : "text-green-700"}>
-            ${restante.toFixed(2)}
-          </span>
-        </div>
+       {restante >= 0 ? (
+            <div className="flex justify-between text-xl font-semibold">
+              <span>Restante:</span>
+              <span className="text-red-600">${restante.toFixed(2)}</span>
+            </div>
+          ) : (
+            <div className="flex justify-between text-xl font-semibold">
+              <span>Cambio:</span>
+              <span className="text-green-700">${Math.abs(restante).toFixed(2)}</span>
+            </div>
+          )}
+
        <div className="flex items-center space-x-2">
   <input
     type="checkbox"

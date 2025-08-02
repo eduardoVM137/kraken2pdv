@@ -157,21 +157,24 @@ export default function ProductoCard({ producto, onAgregar }: Props) {
                 {producto.presentaciones.map((p) => (
                   <Tooltip key={p.presentacion_id}>
                     <TooltipTrigger asChild>
-                      <Button
-                        variant={
-                          seleccionada.presentacion_id === p.presentacion_id
-                            ? "default"
-                            : "outline"
-                        }
-                        size="sm"
-                        className="text-[10px] px-2 py-0.5 h-6 truncate"
-                        onClick={(e: MouseEvent) => {
-                          e.stopPropagation();
-                          setSeleccionada(p);
-                        }}
-                      >
-                        {p.nombre_presentacion}
-                      </Button>
+                        <Button
+                          variant={seleccionada.presentacion_id === p.presentacion_id ? "default" : "ghost"}
+                          size="sm"
+                          className={`
+                            border text-[11px] px-2 h-6 min-w-[40px] justify-center
+                            rounded-md transition-all
+                            ${seleccionada.presentacion_id === p.presentacion_id
+                              ? "bg-black text-white border-black"
+                              : "bg-muted text-gray-800 hover:border-gray-500"}
+                          `}
+                          onClick={(e: MouseEvent) => {
+                            e.stopPropagation();
+                            setSeleccionada(p);
+                          }}
+                        >
+                              {p.nombre_presentacion}
+                        </Button>
+
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>{p.nombre_presentacion}</p>

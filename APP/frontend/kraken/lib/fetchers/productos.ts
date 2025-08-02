@@ -1,4 +1,14 @@
-// lib/fetchers/productos.ts
+// ✅ lib/fetchers/ventas.ts y productos.ts - APIs limpias, robustas y trazables para un entorno SaaS
+
+import { apiGet, apiPost, apiPut, apiPatch, apiDelete } from "../api";
+
+// ───────────────────────────────────────────────────────────────
+// Interfaces y tipos utilizados
+// ───────────────────────────────────────────────────────────────
+
+/**
+ * Representa una presentación de producto.
+ */
 export interface Presentacion {
   presentacion_id: number;
   nombre_presentacion: string;
@@ -7,6 +17,9 @@ export interface Presentacion {
   stock_actual: number;
 }
 
+/**
+ * Representa un producto completo con múltiples presentaciones.
+ */
 export interface Producto {
   detalle_producto_id: number;
   nombre_calculado: string;
@@ -14,177 +27,110 @@ export interface Producto {
   presentaciones: Presentacion[];
 }
 
+// ───────────────────────────────────────────────────────────────
+// Métodos relacionados con productos
+// ───────────────────────────────────────────────────────────────
+
+/**
+ * Obtiene los productos disponibles para venta rápida.
+ * @returns Lista de productos disponibles
+ */
 export async function getProductos(): Promise<Producto[]> {
   try {
-    const res = await fetch("http://localhost:3001/api/venta/productos");
-
-    if (!res.ok) {
-      throw new Error(`Error ${res.status} al obtener productos`);
-    }
-
-    const data = await res.json();
-
-    if (Array.isArray(data.data)) {
-      return data.data;
-    }
-
-    console.error("❌ Respuesta inesperada:", data);
-    return [];
+    return await apiGet("/api/venta/productos", "getProductosVenta");
   } catch (error) {
-    console.error("❌ Error al obtener productos:", error);
+    console.error("❌ Error en getProductosVenta:", error);
     return [];
   }
 }
 
-export async function buscarProductosPorAlias(busqueda: string): Promise<DetalleProducto[]> {
-  const res = await fetch(`http://localhost:3001/api/ventas/productos-alias?busqueda=${encodeURIComponent(busqueda)}`);
-  const data = await res.json();
-  return Array.isArray(data.data) ? data.data : [];
+/**
+ * Realiza búsqueda por alias (códigos alternativos o nombre).
+ * @param busqueda Término de búsqueda
+ * @returns Lista de coincidencias
+ */
+export async function buscarProductosPorAlias(busqueda: string): Promise<Producto[]> {
+  try {
+    return await apiGet(`/api/ventas/productos-alias?busqueda=${encodeURIComponent(busqueda)}`, "buscarProductosPorAlias");
+  } catch (error) {
+    console.error("❌ Error en buscarProductosPorAlias:", error);
+    return [];
+  }
 }
 
-
+/**
+ * Obtiene todos los productos desde la vista general.
+ * @returns Lista completa de productos
+ */
 export async function getListaProductos(): Promise<Producto[]> {
   try {
-    const res = await fetch("http://localhost:3001/api/producto");
-
-    if (!res.ok) {
-      throw new Error(`Error ${res.status} al obtener productos`);
-    }
-
-    const data = await res.json();
-
-    if (Array.isArray(data.data)) {
-      return data.data;
-    }
-
-    console.error("❌ Respuesta inesperada:", data);
-    return [];
+    return await apiGet("/api/producto", "getListaProductos");
   } catch (error) {
-    console.error("❌ Error al obtener productos:", error);
+    console.error("❌ Error en getListaProductos:", error);
     return [];
   }
 }
 
+/**
+ * Activa múltiples productos por ID.
+ * @param ids Lista de IDs
+ */
+export async function activarProductos(ids: number[]) {
+  return await apiPost("/api/productos/activar", { ids }, "activarProductos");
+}
 
-export const activarProductos = async (ids: number[]) => {
-  const res = await fetch("/api/productos/activar", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids }),
-  });
+/**
+ * Elimina productos dados sus IDs.
+ * @param ids Lista de IDs
+ */
+export async function eliminarProductos(ids: number[]) {
+  return await apiDelete("/api/productos/eliminar", { ids }, "eliminarProductos");
+}
 
-  if (!res.ok) throw new Error("Error al activar productos");
-  return await res.json();
-};
+/**
+ * Transfiere productos a una nueva ubicación.
+ * @param ids Lista de productos
+ * @param ubicacionId ID destino
+ */
+export async function transferirProductos(ids: number[], ubicacionId: number) {
+  return await apiPost("/api/productos/transferir", { ids, ubicacionId }, "transferirProductos");
+}
 
-export const eliminarProductos = async (ids: number[]) => {
-  const res = await fetch("/api/productos/eliminar", {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids }),
-  });
-
-  if (!res.ok) throw new Error("Error al eliminar productos");
-  return await res.json();
-};
-
-export const transferirProductos = async (ids: number[], ubicacionId: number) => {
-  const res = await fetch("/api/productos/transferir", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ids, ubicacionId }),
-  });
-
-  if (!res.ok) throw new Error("Error al transferir productos");
-  return await res.json();
-};
+/**
+ * Obtiene productos con stock bajo (críticos).
+ * @returns Lista de productos críticos
+ */
 export async function getProductosCriticos(): Promise<Producto[]> {
   try {
-    const res = await fetch("http://localhost:3001/api/producto/criticos");
-
-    if (!res.ok) throw new Error(`Error ${res.status} al obtener productos críticos`);
-
-    const data = await res.json();
-
-    return Array.isArray(data.data)
-      ? data.data.map((p: any) => ({
-          ...p,
-          id: p.detalle_producto_id ?? p.id,
-          nombre_calculado: p.nombre,
-          tipoVista: "critico",
-          stock: Number(p.stock_actual ?? 0),
-          stock_minimo: Number(p.stock_minimo ?? 0),
-          precios: [],
-          alias: [],
-          sku: "",
-          precio: 0,
-          activo: "activo",
-        }))
-      : [];
+    return await apiGet("/api/producto/criticos", "getProductosCriticos");
   } catch (error) {
-    console.error("❌ Error al obtener productos críticos:", error);
+    console.error("❌ Error en getProductosCriticos:", error);
     return [];
   }
 }
+
+/**
+ * Obtiene productos prioritarios para reposición.
+ * @returns Lista priorizada por rotación/ventas
+ */
 export async function getProductosPrioritarios(): Promise<Producto[]> {
   try {
-    const res = await fetch("http://localhost:3001/api/producto/prioritarios");
-
-    if (!res.ok) throw new Error(`Error ${res.status} al obtener productos prioritarios`);
-
-    const data = await res.json();
-
-    return Array.isArray(data.data?.rows)
-      ? data.data.rows.map((p: any) => ({
-          ...p,
-          id: p.detalle_producto_id ?? p.id,
-          nombre_calculado: p.nombre,
-          tipoVista: "prioritario",
-          stock: Number(p.stock_actual ?? 0),
-          stock_minimo: Number(p.stock_minimo_recomendado ?? 0),
-          total_vendido: Number(p.total_vendido ?? 0),
-          veces_vendido: Number(p.veces_vendido ?? 0),
-          rotacion_prom_dias: Number(p.rotacion_prom_dias ?? 0),
-          precios: [],
-          alias: [],
-          sku: "",
-          precio: 0,
-          activo: "activo",
-        }))
-      : [];
+    return await apiGet("/api/producto/prioritarios", "getProductosPrioritarios");
   } catch (error) {
-    console.error("❌ Error al obtener productos prioritarios:", error);
+    console.error("❌ Error en getProductosPrioritarios:", error);
     return [];
   }
 }
+
+/**
+ * Obtiene métricas adicionales de productos para dashboards.
+ * @returns Lista con indicadores de rotación y venta
+ */
 export async function getProductosMetricas(): Promise<Producto[]> {
   try {
-    const res = await fetch("http://localhost:3001/api/producto/metricas");
-
-    if (!res.ok) throw new Error(`Error ${res.status} al obtener métricas`);
-
-    const data = await res.json();
-
-    return Array.isArray(data.data?.rows)
-      ? data.data.rows.map((p: any) => ({
-          ...p,
-          id: p.detalle_producto_id ?? p.id,
-          nombre_calculado: p.nombre,
-          tipoVista: "metrica",
-          stock: Number(p.stock_actual ?? 0),
-          stock_minimo: Number(p.stock_minimo_recomendado ?? 0),
-          total_vendido: Number(p.total_vendido ?? 0),
-          veces_vendido: Number(p.veces_vendido ?? 0),
-          rotacion_prom_dias: Number(p.rotacion_prom_dias ?? 0),
-          precios: [],
-          alias: [],
-          sku: "",
-          precio: 0,
-          activo: "activo",
-        }))
-      : [];
+    return await apiGet("/api/producto/metricas", "getProductosMetricas");
   } catch (error) {
-    console.error("❌ Error al obtener métricas:", error);
+    console.error("❌ Error en getProductosMetricas:", error);
     return [];
   }
 }
