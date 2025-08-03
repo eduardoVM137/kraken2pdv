@@ -11,6 +11,8 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001"
  * - Registra errores con contexto para trazabilidad
  */
 async function handleResponse(res: Response, context: string) {
+  console.log("ENV API BASE URL:", process.env.NEXT_PUBLIC_API_BASE_URL);
+
   const data = await res.json();
   if (!res.ok) {
     console.error(`❌ [${context}]`, data.message || res.statusText);
@@ -26,6 +28,8 @@ async function handleResponse(res: Response, context: string) {
  * @returns T - respuesta del backend, campo `data`
  */
 export async function apiGet<T = any>(path: string, context = `GET ${path}`): Promise<T> {
+  console.log("ENV API BASE URL:", process.env.NEXT_PUBLIC_API_BASE_URL);
+
   const res = await fetch(`${BASE_URL}${path}`);
   return await handleResponse(res, context);
 }
