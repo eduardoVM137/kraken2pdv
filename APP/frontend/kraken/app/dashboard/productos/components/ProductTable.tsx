@@ -63,7 +63,7 @@ export const ProductTable: React.FC<ProductTableProps> = ({
   const [vistaExtra, setVistaExtra] = useState<"todos" | "criticos" | "prioritarios" | "metricas">("todos");
   const [cache, setCache] = useState<{ [key: string]: Producto[] }>({});
 
-  const rowsPerPage = 10;
+const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const toggleSelection = (id: number) => {
     setSelected((prev) =>
@@ -148,13 +148,16 @@ export const ProductTable: React.FC<ProductTableProps> = ({
       let aValue: string | number = "";
       let bValue: string | number = "";
 
-      if (orderBy === "precio") {
-        aValue = Number(a.precios?.[0]?.precio_venta ?? 0);
-        bValue = Number(b.precios?.[0]?.precio_venta ?? 0);
-      } else {
-        aValue = String(a[orderBy] ?? "").toLowerCase();
-        bValue = String(b[orderBy] ?? "").toLowerCase();
-      }
+    if (orderBy === "precio") {
+  aValue = Number(a.precios?.[0]?.precio_venta ?? 0);
+  bValue = Number(b.precios?.[0]?.precio_venta ?? 0);
+} else if (orderBy === "alias") {
+  aValue = a.alias?.[0]?.alias?.toLowerCase() ?? "";
+  bValue = b.alias?.[0]?.alias?.toLowerCase() ?? "";
+} else {
+  aValue = String(a[orderBy] ?? "").toLowerCase();
+  bValue = String(b[orderBy] ?? "").toLowerCase();
+}
 
       if (typeof aValue === "number" && typeof bValue === "number") {
         return orderDir === "asc" ? aValue - bValue : bValue - aValue;
@@ -178,44 +181,125 @@ export const ProductTable: React.FC<ProductTableProps> = ({
     { label: "Métricas de rotación", tipo: "metricas" },
     { label: "Todos", tipo: "todos" },
   ];
+  const generarBotonesPaginacion = () => {
+  const maxBotones = 7; // muestra máximo 7 botones
+  const paginas = [];
 
-  return (
-    <div className="relative space-y-4">
-      <div className="flex flex-wrap gap-4 items-center">
-        <Input
-          placeholder="Buscar por nombre, alias, SKU o tipo cliente..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setCurrentPage(1);
-          }}
-          className="max-w-sm"
-        />
+  if (totalPages <= maxBotones) {
+    for (let i = 1; i <= totalPages; i++) {
+      paginas.push(i);
+    }
+  } else {
+    paginas.push(1);
+    if (currentPage > 4) paginas.push("...");
+
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+
+    for (let i = start; i <= end; i++) {
+      paginas.push(i);
+    }
+
+    if (currentPage < totalPages - 3) paginas.push("...");
+    paginas.push(totalPages);
+  }
+
+  return paginas;
+};
+
+
+return (
+  <div className="relative space-y-4">
+    <div className="flex flex-wrap gap-4 items-center">
+      <Input
+        placeholder="Buscar por nombre, alias, SKU o tipo cliente..."
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setCurrentPage(1);
+        }}
+        className="max-w-sm"
+      />
+      <select
+        value={estadoFiltro}
+        onChange={(e) => {
+          setEstadoFiltro(e.target.value);
+          setCurrentPage(1);
+        }}
+        className="border px-2 py-1 rounded text-sm"
+      >
+        <option value="todos">Todos</option>
+        <option value="activo">Activo</option>
+        <option value="inactivo">Inactivo</option>
+        <option value="pendiente">Pendiente</option>
+      </select>
+      <div className="flex items-center gap-2">
+        <label className="text-sm text-muted-foreground">Filas por página:</label>
         <select
-          value={estadoFiltro}
+          value={rowsPerPage}
           onChange={(e) => {
-            setEstadoFiltro(e.target.value);
+            setRowsPerPage(Number(e.target.value));
             setCurrentPage(1);
           }}
           className="border px-2 py-1 rounded text-sm"
         >
-          <option value="todos">Todos</option>
-          <option value="activo">Activo</option>
-          <option value="inactivo">Inactivo</option>
-          <option value="pendiente">Pendiente</option>
+          {[10, 25, 50, 100].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
         </select>
-
-        {botonesVista.map((b) => (
-          <Button
-            key={b.tipo}
-            variant={vistaExtra === b.tipo ? "default" : "outline"}
-            size="sm"
-            onClick={() => cargarProductos(b.tipo as any)}
-          >
-            {b.label}
-          </Button>
-        ))}
       </div>
+
+      {botonesVista.map((b) => (
+        <Button
+          key={b.tipo}
+          variant={vistaExtra === b.tipo ? "default" : "outline"}
+          size="sm"
+          onClick={() => cargarProductos(b.tipo as any)}
+        >
+          {b.label}
+        </Button>
+      ))}
+
+      {/* PAGINACIÓN COMPACTA */}
+      <div className="ml-auto flex items-center gap-1 text-xs">
+        <Button
+          size="icon"
+          variant="ghost"
+          disabled={currentPage === 1}
+          onClick={() => setCurrentPage(1)}
+        >
+          «
+        </Button>
+        {generarBotonesPaginacion().map((num, i) =>
+          typeof num === "number" ? (
+            <Button
+              key={i}
+              size="icon"
+              variant={currentPage === num ? "default" : "outline"}
+              className="w-8 h-8 text-xs"
+              onClick={() => setCurrentPage(num)}
+            >
+              {num}
+            </Button>
+          ) : (
+            <span key={i} className="px-1">…</span>
+          )
+        )}
+        <Button
+          size="icon"
+          variant="ghost"
+          disabled={currentPage === totalPages}
+          onClick={() => setCurrentPage(totalPages)}
+        >
+          »
+        </Button>
+        <span className="ml-2 text-muted-foreground hidden sm:inline">
+          Página {currentPage} de {totalPages} — {filteredAndSorted.length} resultados
+        </span>
+      </div>
+    </div>
 
       <div className="overflow-auto rounded-md border bg-white shadow">
         <table className="w-full text-sm text-left">
@@ -228,7 +312,20 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                   {orderBy === "nombre_calculado" && (orderDir === "asc" ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />)}
                 </div>
               </th>
-              <th className="p-2">Alias</th>
+<th
+  className="p-2 cursor-pointer select-none"
+  onClick={() => handleSort("alias")}
+>
+  <div className="flex items-center gap-1">
+    Alias
+    {orderBy === "alias" &&
+      (orderDir === "asc" ? (
+        <ChevronUp className="w-4 h-4" />
+      ) : (
+        <ChevronDown className="w-4 h-4" />
+      ))}
+  </div>
+</th>
               <th onClick={() => handleSort("precio")} className="p-2 cursor-pointer select-none">
                 <div className="flex items-center gap-1">
                   Precios
@@ -271,6 +368,7 @@ export const ProductTable: React.FC<ProductTableProps> = ({
                       <Badge variant="destructive" className="text-xs">Stock bajo</Badge>
                     )}
                   </div>
+                  
                 </td>
                 <td className="p-2">
                   {producto.alias?.length ? (
@@ -337,24 +435,7 @@ export const ProductTable: React.FC<ProductTableProps> = ({
           </tbody>
         </table>
       </div>
-
-      <div className="flex justify-between items-center text-sm mt-2">
-        <div className="text-muted-foreground">
-          Página {currentPage} de {totalPages} — {filteredAndSorted.length} resultado(s)
-        </div>
-        <div className="flex gap-1 flex-wrap">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <Button
-              key={i}
-              variant={currentPage === i + 1 ? "default" : "outline"}
-              size="sm"
-              onClick={() => setCurrentPage(i + 1)}
-            >
-              {i + 1}
-            </Button>
-          ))}
-        </div>
-      </div>
+  
     </div>
   );
 };

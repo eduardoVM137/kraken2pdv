@@ -393,14 +393,15 @@ const handleCobrar = async (
               />
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <ScrollArea className="flex-1 min-h-0">
-                  <GridProducto
-                    productos={productos}
-                    onAgregar={handleAgregarProducto}
-                    busqueda={busqueda}
-                    paginaActual={paginaActual}
-                    setPaginaActual={setPaginaActual}
-                    buscarPorAlias={buscarPorAlias}
-                  />
+                 <GridProducto
+  productosOriginales={productosOriginales}
+  onAgregar={handleAgregarProducto}
+  busqueda={busqueda}
+  paginaActual={paginaActual}
+  setPaginaActual={setPaginaActual}
+  buscarPorAlias={buscarPorAlias}
+/>
+
                 </ScrollArea>
               </div>
             </div>

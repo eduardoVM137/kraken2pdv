@@ -4,7 +4,7 @@ import { DetalleProducto } from "./detalle_producto.js";
 
 export const Producto = pgTable("producto", {
   id: serial("id").primaryKey(),
-  nombre: varchar("nombre", { length: 100 }),
+  nombre: varchar("nombre"),
   descripcion: text("descripcion"),
   activo: boolean("activo").default(true),
   categoria_id: integer("categoria_id"),

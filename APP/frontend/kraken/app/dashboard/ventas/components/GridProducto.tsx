@@ -9,7 +9,7 @@ import { Button }               from "@/components/ui/button";
 import { ScrollArea }           from "@/components/ui/scroll-area";
 
 interface Props {
-  productos: any[];
+  productosOriginales: any[];
   onAgregar: (p: any) => void;
   busqueda: string;
   paginaActual: number;
@@ -19,7 +19,7 @@ interface Props {
 }
 
 export default function GridProducto({
-  productos = [],
+  productosOriginales,
   onAgregar,
   busqueda,
   paginaActual,
@@ -27,25 +27,32 @@ export default function GridProducto({
   productosPorPagina = 15,
   buscarPorAlias = false,
 }: Props) {
+
   /* ────── orden ────── */
   const [orden, setOrden] = useState<"nombre" | "precio">("nombre");
 
   /* ────── filtro + orden ────── */
   const filtrados = useMemo(() => {
-    let res = productos;
-    if (!buscarPorAlias) {
-      res = res.filter((p) =>
-        p.nombre_calculado?.toLowerCase().includes(busqueda.toLowerCase()),
-      );
-    }
-    res.sort((a: any, b: any) =>
-      orden === "nombre"
-        ? a.nombre_calculado.localeCompare(b.nombre_calculado)
-        : Number(a.precios?.[0]?.precio_venta ?? 0) -
-          Number(b.precios?.[0]?.precio_venta ?? 0),
+  let res = [...productosOriginales];
+
+  // Filtro
+  if (!buscarPorAlias && busqueda.trim()) {
+    res = res.filter((p) =>
+      p.nombre_calculado?.toLowerCase().includes(busqueda.toLowerCase())
     );
-    return res;
-  }, [productos, busqueda, orden, buscarPorAlias]);
+  }
+
+  // Orden
+  res.sort((a, b) =>
+    orden === "nombre"
+      ? a.nombre_calculado.localeCompare(b.nombre_calculado)
+      : Number(a.precios?.[0]?.precio_venta ?? 0) -
+        Number(b.precios?.[0]?.precio_venta ?? 0)
+  );
+
+  return res;
+}, [productosOriginales, busqueda, orden, buscarPorAlias]);
+
 
   /* ────── paginación ────── */
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / productosPorPagina));
