@@ -248,6 +248,28 @@ export const buscarProductosPorAliasController = async (req, res, next) => {
         });
       }
     }
+    
+// 4) Obtener inventarios por detalle_producto_id
+const inventariosMap = new Map();
+for (const row of registros) {
+  const { detalle_producto_id, inventario_id, stock_actual } = row;
+  if (!inventariosMap.has(detalle_producto_id)) {
+    inventariosMap.set(detalle_producto_id, []);
+  }
+  if (!inventariosMap.get(detalle_producto_id).some(i => i.id === inventario_id)) {
+    inventariosMap.get(detalle_producto_id).push({ id: inventario_id, stock: Number(stock_actual ?? 0) });
+  }
+}
+
+// 5) Asignar inventarios ordenados
+for (const [id, invs] of inventariosMap.entries()) {
+  const prod = productosMap.get(id);
+  if (prod) {
+    prod.inventarios = invs
+      .sort((a, b) => b.stock - a.stock)
+      .map(inv => inv.id); // solo IDs como en la otra API
+  }
+}
 
     res.status(200).json({ data: Array.from(productosMap.values()) });
   } catch (error) {
