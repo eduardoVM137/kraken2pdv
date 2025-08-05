@@ -304,7 +304,7 @@ const handleCobrar = async (
       precio_venta: item.precio,
       cantidad: item.cantidad,
       descuento: 0,
-      empleado_id: 2,
+      empleado_id: 1,
       inventario_id: item.inventarios[0],
     })),
   };
@@ -393,14 +393,15 @@ const handleCobrar = async (
               />
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <ScrollArea className="flex-1 min-h-0">
-                 <GridProducto
-  productosOriginales={productosOriginales}
+              <GridProducto
+  productos={productos} // ✅ Usa el listado ya filtrado por alias o nombre
   onAgregar={handleAgregarProducto}
   busqueda={busqueda}
   paginaActual={paginaActual}
   setPaginaActual={setPaginaActual}
   buscarPorAlias={buscarPorAlias}
 />
+
 
                 </ScrollArea>
               </div>

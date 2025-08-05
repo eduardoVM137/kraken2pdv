@@ -9,7 +9,7 @@ import { Button }               from "@/components/ui/button";
 import { ScrollArea }           from "@/components/ui/scroll-area";
 
 interface Props {
-  productosOriginales: any[];
+  productos: any[];
   onAgregar: (p: any) => void;
   busqueda: string;
   paginaActual: number;
@@ -19,7 +19,7 @@ interface Props {
 }
 
 export default function GridProducto({
-  productosOriginales,
+  productos,
   onAgregar,
   busqueda,
   paginaActual,
@@ -32,17 +32,17 @@ export default function GridProducto({
   const [orden, setOrden] = useState<"nombre" | "precio">("nombre");
 
   /* ────── filtro + orden ────── */
-  const filtrados = useMemo(() => {
-  let res = [...productosOriginales];
+const filtrados = useMemo(() => {
+  let res = [...productos];
 
-  // Filtro
+  // Solo filtramos por nombre si no es búsqueda por alias
   if (!buscarPorAlias && busqueda.trim()) {
     res = res.filter((p) =>
       p.nombre_calculado?.toLowerCase().includes(busqueda.toLowerCase())
     );
   }
 
-  // Orden
+  // En ambos modos (nombre o alias), sí podemos ordenar
   res.sort((a, b) =>
     orden === "nombre"
       ? a.nombre_calculado.localeCompare(b.nombre_calculado)
@@ -51,7 +51,7 @@ export default function GridProducto({
   );
 
   return res;
-}, [productosOriginales, busqueda, orden, buscarPorAlias]);
+}, [productos, busqueda, orden, buscarPorAlias]);
 
 
   /* ────── paginación ────── */

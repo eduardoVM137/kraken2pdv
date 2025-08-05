@@ -175,8 +175,16 @@ export const obtenerProductosVentaCompacto = async () => {
 };
 
 export const obtenerPresentacionesPorProducto = async () => {
-  return await db.select().from(Presentacion);
+  return await db
+    .select({
+      id: Presentacion.id,
+      detalle_producto_id: Presentacion.detalle_producto_id,
+      nombre: Presentacion.nombre,
+      cantidad: Presentacion.cantidad,
+    })
+    .from(Presentacion);
 };
+
 
 //venta alias panel
 
