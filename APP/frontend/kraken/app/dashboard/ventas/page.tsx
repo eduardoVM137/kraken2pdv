@@ -25,15 +25,19 @@ import { generarLineasPOS } from "@/app/utils/generarTicket"; // ajusta la ruta 
 
 // Componentes UI para Select
 import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetHeader,
+  SheetTitle
+} from "@/components/ui/sheet";
+ 
+import { ShoppingCart } from "lucide-react";
+
 
 export default function VentasPage() {
   const inputRef = useRef<HTMLInputElement>(null);
+const [abrirCarritoMovil, setAbrirCarritoMovil] = useState(false);
 
   // — Impresoras POS —
   const [impresoras, setImpresoras] = useState<string[]>(["POS-58"]);
@@ -264,8 +268,13 @@ export default function VentasPage() {
   };
 
   // Cálculo de totales
-  const subtotal = venta.reduce((sum, i) => sum + i.precio * i.cantidad, 0);
-  const total = subtotal - descuento;
+// Cálculo de totales con descuentos por producto
+const subtotal = venta.reduce((sum, item) => {
+  const descuentoProducto = item.descuento ?? 0;
+  return sum + (item.precio * item.cantidad - descuentoProducto);
+}, 0);
+
+const total = subtotal - descuento; // descuento general
 
   // ─── Lógica de QZ Tray ─────────────────────────────────────
   const onLoadQZ = async () => {
@@ -366,79 +375,120 @@ const handleCobrar = async (
 };
 
 
+ return (
+  <>
+    {/* 1) Cargamos QZ Tray */}
+    <Script
+      src="https://unpkg.com/qz-tray@2.2.5/qz-tray.js"
+      strategy="beforeInteractive"
+      onLoad={onLoadQZ}
+    />
 
-  return (
-    <>
-      {/* 1) Cargamos QZ Tray */}
-      <Script
-        src="https://unpkg.com/qz-tray@2.2.5/qz-tray.js"
-        strategy="beforeInteractive"
-        onLoad={onLoadQZ}
-      />
+    {/* 2) Layout principal */}
+    <div className="flex h-screen">
+      <ResizablePanelGroup direction="horizontal" className="flex h-full overflow-hidden">
 
-
-      {/* 3) Layout principal */}
-      <div className="flex h-screen">
-        <ResizablePanelGroup direction="horizontal" className="flex h-full overflow-hidden">
-          <ResizablePanel defaultSize={65} minSize={50} className="h-full min-h-0">
-            <div className="flex flex-col h-full min-h-0 p-6 bg-gray-50">
-              <BuscadorProductos
-                ref={inputRef}
-                busqueda={busqueda}
-                setBusqueda={setBusqueda}
-                buscarPorAlias={buscarPorAlias}
-                setBuscarPorAlias={setBuscarPorAlias}
-                setPaginaActual={setPaginaActual}
-                onSearchEnter={handleSearchEnter}
-              />
-              <div className="flex-1 min-h-0 overflow-y-auto">
-                <ScrollArea className="flex-1 min-h-0">
-              <GridProducto
-  productos={productos} // ✅ Usa el listado ya filtrado por alias o nombre
-  onAgregar={handleAgregarProducto}
-  busqueda={busqueda}
-  paginaActual={paginaActual}
-  setPaginaActual={setPaginaActual}
-  buscarPorAlias={buscarPorAlias}
-/>
-
-
-                </ScrollArea>
-              </div>
+        {/* ✅ Panel de productos SIEMPRE visible */}
+        <ResizablePanel defaultSize={65} minSize={50} className="h-full min-h-0">
+          <div className="flex flex-col h-full min-h-0 p-6 bg-gray-50">
+            <BuscadorProductos
+              ref={inputRef}
+              busqueda={busqueda}
+              setBusqueda={setBusqueda}
+              buscarPorAlias={buscarPorAlias}
+              setBuscarPorAlias={setBuscarPorAlias}
+              setPaginaActual={setPaginaActual}
+              onSearchEnter={handleSearchEnter}
+            />
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <ScrollArea className="flex-1 min-h-0">
+                <GridProducto
+                  productos={productos}
+                  onAgregar={handleAgregarProducto}
+                  busqueda={busqueda}
+                  paginaActual={paginaActual}
+                  setPaginaActual={setPaginaActual}
+                  buscarPorAlias={buscarPorAlias}
+                />
+              </ScrollArea>
             </div>
-          </ResizablePanel>
+          </div>
+        </ResizablePanel>
 
-          <ResizableHandle withHandle />
+        <ResizableHandle withHandle />
 
-          <ResizablePanel defaultSize={35} minSize={15} className="h-full min-h-0 hidden lg:block">
-            <div className="flex flex-col h-full min-h-0 bg-white">
-              <ResumenVenta
-                cliente={cliente}
-                setCliente={setCliente}
-                vendedor={vendedor}
-                setVendedor={setVendedor}
-                descuento={descuento}
-                setDescuento={setDescuento}
-                subtotal={subtotal}
-                venta={venta}
-                setVenta={setVenta}
-                ventasPendientes={ventasPendientes}
-                agregarVentaPendiente={agregarVentaPendiente}
-                cargarVentaPendiente={cargarVentaPendiente}
-                eliminarVentaPendiente={eliminarVentaPendiente}
-                mostrarModal={mostrarModal}
-                setMostrarModal={setMostrarModal}
-                total={total}
-                pagos={pagos}
-                setPagos={setPagos}
-                handleCobrar={handleCobrar}
-                  handleImprimirCotizacion={handleImprimirCotizacion}
+        {/* ✅ Panel de carrito SOLO en desktop */}
+        <ResizablePanel defaultSize={35} minSize={15} className="h-full min-h-0 hidden lg:block">
+          <div className="flex flex-col h-full min-h-0 bg-white">
+            <ResumenVenta
+              cliente={cliente}
+              setCliente={setCliente}
+              vendedor={vendedor}
+              setVendedor={setVendedor}
+              descuento={descuento}
+              setDescuento={setDescuento}
+              subtotal={subtotal}
+              venta={venta}
+              setVenta={setVenta}
+              ventasPendientes={ventasPendientes}
+              agregarVentaPendiente={agregarVentaPendiente}
+              cargarVentaPendiente={cargarVentaPendiente}
+              eliminarVentaPendiente={eliminarVentaPendiente}
+              mostrarModal={mostrarModal}
+              setMostrarModal={setMostrarModal}
+              total={total}
+              pagos={pagos}
+              setPagos={setPagos}
+              handleCobrar={handleCobrar}
+              handleImprimirCotizacion={handleImprimirCotizacion}
+            />
+          </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
-              />
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
-    </>
-  );
+      {/* ✅ Sheet carrito móvil */}
+      <Sheet open={abrirCarritoMovil} onOpenChange={setAbrirCarritoMovil}>
+        <SheetTrigger asChild>
+          <button
+            className="fixed bottom-4 right-4 z-50 lg:hidden bg-black text-white px-4 py-2 rounded-full shadow"
+            onClick={() => setAbrirCarritoMovil(true)}
+          >
+            <ShoppingCart className="w-5 h-5 inline mr-1" />
+            Ver carrito ({venta.reduce((sum, p) => sum + p.cantidad, 0)})
+          </button>
+        </SheetTrigger>
+
+        <SheetContent side="right" className="w-full max-w-sm p-0">
+          <SheetHeader className="p-4">
+            <SheetTitle>Resumen de venta</SheetTitle>
+          </SheetHeader>
+          <div className="h-[calc(100%-3.5rem)] overflow-y-auto">
+            <ResumenVenta
+              cliente={cliente}
+              setCliente={setCliente}
+              vendedor={vendedor}
+              setVendedor={setVendedor}
+              descuento={descuento}
+              setDescuento={setDescuento}
+              subtotal={subtotal}
+              venta={venta}
+              setVenta={setVenta}
+              ventasPendientes={ventasPendientes}
+              agregarVentaPendiente={agregarVentaPendiente}
+              cargarVentaPendiente={cargarVentaPendiente}
+              eliminarVentaPendiente={eliminarVentaPendiente}
+              mostrarModal={mostrarModal}
+              setMostrarModal={setMostrarModal}
+              total={total}
+              pagos={pagos}
+              setPagos={setPagos}
+              handleCobrar={handleCobrar}
+              handleImprimirCotizacion={handleImprimirCotizacion}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
+  </>
+);
 }

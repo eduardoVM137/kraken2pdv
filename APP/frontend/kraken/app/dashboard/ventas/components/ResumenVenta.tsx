@@ -1,12 +1,9 @@
-// app/dashboard/ventas/components/ResumenVenta.tsx
-
 "use client";
 
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -14,10 +11,8 @@ import {
   ContextMenuItem,
 } from "@/components/ui/context-menu";
 import TablaVenta from "@/components/TablaVenta";
-import ModalCobro from "./ModalCobro"; 
-
+import ModalCobro from "./ModalCobro";
 import { ProductoVenta, VentaPendiente } from "./types";
-
 import Link from "next/link";
 
 interface Props {
@@ -39,12 +34,11 @@ interface Props {
   total: number;
   pagos: { metodo: string; monto: number }[];
   setPagos: (v: any) => void;
-handleCobrar: (
-  pagosSeleccionados: { metodo: string; monto: number }[],
-  imprimir: boolean
-) => void;
- handleImprimirCotizacion: () => void;
-
+  handleCobrar: (
+    pagosSeleccionados: { metodo: string; monto: number }[],
+    imprimir: boolean
+  ) => void;
+  handleImprimirCotizacion: () => void;
 }
 
 export default function ResumenVenta(props: Props) {
@@ -67,22 +61,21 @@ export default function ResumenVenta(props: Props) {
     total,
     pagos,
     setPagos,
-    handleCobrar,handleImprimirCotizacion,
+    handleCobrar,
+    handleImprimirCotizacion,
   } = props;
 
   const [showPendientes, setShowPendientes] = useState(true);
 
- 
-
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* Cabecera */}
-      <div className="p-4 space-y-4">
+    <div className="flex flex-col h-full">
+      {/* Parte superior fija */}
+      <div className="p-4 space-y-4 border-b">
         <h2 className="text-xl font-semibold">Resumen de venta</h2>
         <div className="flex flex-wrap gap-2">
-             <Link href="/dashboard/ventas/historico">
-                    <Button variant="outline">ir a historico</Button>
-                  </Link>
+          <Link href="/dashboard/ventas/historico">
+            <Button variant="outline">ir a historico</Button>
+          </Link>
           <Input
             placeholder="Cliente"
             value={cliente}
@@ -111,92 +104,97 @@ export default function ResumenVenta(props: Props) {
         </div>
       </div>
 
-      {/* Ventas pendientes */}
-      <div className="px-4">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="font-medium">Ventas pendientes</h3>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowPendientes((s) => !s)}
-          >
-            {showPendientes ? "Ocultar" : "Mostrar"}
-          </Button>
-        </div>
-        {showPendientes && (
-          <div className="max-h-24 overflow-y-auto mb-4">
-            <div className="flex flex-wrap gap-2">
-              {ventasPendientes.map((p) => (
-                <Badge
-                  key={p.id}
-                  className="flex items-center space-x-1 cursor-pointer"
-                  onClick={() => {
-                    if (
-                      venta.length > 0 &&
-                      !window.confirm(
-                        "Cargar esta venta pendiente borrará la nota actual. ¿Continuar?"
-                      )
-                    )
-                      return;
-                    cargarVentaPendiente(p);
-                  }}
-                >
-                  <span className="truncate max-w-[120px]">
-                    {p.timestamp}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    className="text-red-600 p-0 ml-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
+      {/* Parte scrollable */}
+      <div className="flex-1 overflow-y-auto px-4">
+        {/* Ventas pendientes */}
+        <div className="mt-4">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-medium">Ventas pendientes</h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPendientes((s) => !s)}
+            >
+              {showPendientes ? "Ocultar" : "Mostrar"}
+            </Button>
+          </div>
+          {showPendientes && (
+            <div className="max-h-24 overflow-y-auto mb-4">
+              <div className="flex flex-wrap gap-2">
+                {ventasPendientes.map((p) => (
+                  <Badge
+                    key={p.id}
+                    className="flex items-center space-x-1 cursor-pointer"
+                    onClick={() => {
                       if (
-                        window.confirm(
-                          "¿Seguro que deseas eliminar esta venta pendiente?"
+                        venta.length > 0 &&
+                        !window.confirm(
+                          "Cargar esta venta pendiente borrará la nota actual. ¿Continuar?"
                         )
-                      ) {
-                        eliminarVentaPendiente(p.id);
-                      }
+                      )
+                        return;
+                      cargarVentaPendiente(p);
                     }}
                   >
-                    ✕
-                  </Button>
-                </Badge>
-              ))}
+                    <span className="truncate max-w-[120px]">
+                      {p.timestamp}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="text-red-600 p-0 ml-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (
+                          window.confirm(
+                            "¿Seguro que deseas eliminar esta venta pendiente?"
+                          )
+                        ) {
+                          eliminarVentaPendiente(p.id);
+                        }
+                      }}
+                    >
+                      ✕
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* Tabla de productos */}
+        <div className="w-full overflow-x-auto">
+          <ContextMenu>
+            <ContextMenuTrigger asChild>
+              <div>
+                <TablaVenta
+                  productos={venta}
+                  setProductos={setVenta}
+                  agregarVentaPendiente={agregarVentaPendiente}
+                />
+              </div>
+            </ContextMenuTrigger>
+            <ContextMenuContent align="end">
+              <ContextMenuItem onSelect={handleImprimirCotizacion}>
+                Imprimir cotización
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        </div>
+
+        {/* Total gigante */}
+        <div className="mt-6 text-center">
+          <span className="text-red-600 text-4xl font-extrabold">
+            ${total.toFixed(2)}
+          </span>
+          <div className="uppercase text-sm text-red-500 tracking-wide">
+            Total a Pagar
           </div>
-        )}
-      </div>
-
-      {/* Tabla de venta con menú contextual */}
-      <ContextMenu>
-        <ContextMenuTrigger asChild>
-          <ScrollArea className="flex-1 min-h-0 px-4">
-            <TablaVenta
-              productos={venta}
-              setProductos={setVenta}
-              agregarVentaPendiente={agregarVentaPendiente}
-            />
-          </ScrollArea>
-        </ContextMenuTrigger>
-        <ContextMenuContent align="end">
-          <ContextMenuItem onSelect={handleImprimirCotizacion}>
-            Imprimir cotización
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
-
-            {/* Total gigante debajo de la tabla */}
-      <div className="px-4 mt-6 text-center">
-        <span className="text-red-600 text-4xl font-extrabold">
-          ${total.toFixed(2)}
-        </span>
-        <div className="uppercase text-sm text-red-500 tracking-wide">
-          Total a Pagar
         </div>
       </div>
-      {/* Cobrar */}
 
+      {/* Botón cobrar fijo */}
       <div className="sticky bottom-0 p-4 border-t bg-white z-10">
         <ModalCobro
           open={mostrarModal}
@@ -204,13 +202,12 @@ export default function ResumenVenta(props: Props) {
           total={total}
           pagos={pagos}
           setPagos={setPagos}
-handleCobrar={(pagosSeleccionados, imprimir) => handleCobrar(pagosSeleccionados, imprimir)}
+          handleCobrar={(pagosSeleccionados, imprimir) =>
+            handleCobrar(pagosSeleccionados, imprimir)
+          }
           disabled={venta.length === 0}
         />
       </div>
-
     </div>
-
-    
   );
 }

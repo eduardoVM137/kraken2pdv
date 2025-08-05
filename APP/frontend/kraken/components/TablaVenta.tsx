@@ -36,13 +36,11 @@ export default function TablaVenta({
   const [showDetails, setShowDetails] = useState(false);
 
   // Recalcular totales generales
-  const totalGeneral = productos.reduce((sum, item) => {
-    const desc = item.descuento ?? 0;
-    const base = item.precio * item.cantidad - desc;
-    const ivaPct = item.iva ?? 0;
-    const tax = (base * ivaPct) / 100;
-    return sum + base + tax;
-  }, 0);
+// Total parcial sin descuentos ni IVA
+const totalGeneral = productos.reduce((sum, item) => {
+  return sum + item.precio * item.cantidad;
+}, 0);
+
 
   const totalItems = productos.reduce((sum, item) => sum + item.cantidad, 0);
   const totalUnicos = productos.length;
