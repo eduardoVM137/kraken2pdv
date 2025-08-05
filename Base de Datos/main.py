@@ -25,7 +25,7 @@ pg_conn = psycopg2.connect(
     dbname="kraken",
     user="postgres",
     password="admin1234",
-    host="192.168.1.64",
+    host="localhost",
     port="5432"
 )
 pg_cursor = pg_conn.cursor()
@@ -49,7 +49,7 @@ for row in sql_cursor.fetchall():
         INSERT INTO producto (nombre, descripcion, activo, categoria_id, state_id)
         VALUES (%s, %s, true, %s, 1)
         RETURNING id
-    """, (descripcion, descripcion, categoria))
+    """, (descripcion[:100], descripcion, categoria))
     producto_id = pg_cursor.fetchone()[0]
 
     # 2. Insertar en detalle_producto
@@ -57,7 +57,7 @@ for row in sql_cursor.fetchall():
         INSERT INTO detalle_producto (producto_id, descripcion, nombre_calculado, activo, state_id)
         VALUES (%s, %s, %s, true, 1)
         RETURNING id
-    """, (producto_id, descripcion, descripcion))
+    """, (producto_id, descripcion, descripcion[:100]))
     detalle_producto_id = pg_cursor.fetchone()[0]
 
     # 3. Insertar inventario
@@ -96,15 +96,18 @@ for row in sql_cursor.fetchall():
         True
     ))
 
-    # 6. Insertar alias
-    alias_insertados = set()
-    for alias in [cod_producto, cod_barras]:
-        if alias and alias not in alias_insertados:
-            pg_cursor.execute("""
-                INSERT INTO etiqueta_producto (detalle_producto_id, tipo, alias, visible, state_id)
-                VALUES (%s, %s, %s, true, '1')
-            """, (detalle_producto_id, "alias", alias))
-            alias_insertados.add(alias)
+    # 6. Insertar alias como etiquetas (sin validación de duplicados)
+    if cod_producto:
+        pg_cursor.execute("""
+            INSERT INTO etiqueta_producto (detalle_producto_id, tipo, alias, visible, state_id)
+            VALUES (%s, %s, %s, true, '1')
+        """, (detalle_producto_id, "codigo_producto", cod_producto))
+
+    if cod_barras:
+        pg_cursor.execute("""
+            INSERT INTO etiqueta_producto (detalle_producto_id, tipo, alias, visible, state_id)
+            VALUES (%s, %s, %s, true, '1')
+        """, (detalle_producto_id, "codigo_barras", cod_barras))
 
 # Guardar todo
 pg_conn.commit()
@@ -113,4 +116,4 @@ pg_cursor.close()
 sql_conn.close()
 pg_conn.close()
 
-print("✅ Migración finalizada correctamente.")
+print("Migración finalizada correctamente.")

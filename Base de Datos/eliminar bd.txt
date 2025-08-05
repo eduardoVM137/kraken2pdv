@@ -1,0 +1,40 @@
+BEGIN;
+DELETE FROM detalle_ingreso;
+DELETE FROM detalle_venta;
+
+DELETE FROM producto_multimedia;
+
+DELETE FROM producto_ubicacion;
+
+-- 🔹 Eliminar alias/códigos de barra
+DELETE FROM precio;
+-- 🔹 Eliminar alias/códigos de barra
+DELETE FROM etiqueta_producto;
+-- 🔹 Eliminar componentes que referencian productos
+DELETE FROM presentacion;
+-- 🔹 Eliminar componentes que referencian productos
+DELETE FROM componente;
+
+-- 🔹 Eliminar movimientos de inventario
+DELETE FROM movimiento_stock;
+
+-- 🔹 Eliminar ubicaciones físicas por celda
+DELETE FROM detalle_producto_celda;
+
+-- 🔹 Eliminar relaciones de producto con ubicaciones y precios
+DELETE FROM producto_ubicacion;
+
+-- 🔹 Eliminar precios
+DELETE FROM precio;
+
+-- 🔹 Eliminar inventario
+DELETE FROM inventario;
+
+
+-- 🔹 Eliminar detalle_producto
+DELETE FROM detalle_producto;
+
+-- 🔹 Eliminar producto
+DELETE FROM producto;
+
+COMMIT;
