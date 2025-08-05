@@ -2,7 +2,7 @@
 // Usa contexto opcional para registrar qué función de negocio realizó cada llamada HTTP
 // Es escalable, claro y compatible con SSR/Next.js frontend
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001";
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://192.168.1.69:3001";
 
 /**
  * Maneja la respuesta general de cualquier petición
