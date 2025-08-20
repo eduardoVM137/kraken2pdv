@@ -10,8 +10,8 @@ import {
   ContextMenuContent,
   ContextMenuItem,
 } from "@/components/ui/context-menu";
-import TablaVenta from "@/components/TablaVenta";
-import ModalCobro from "./ModalCobro";
+import TablaVenta from "@/app/dashboard/ventas/components/cart/TablaVenta";
+import ModalCobro from "../payments/ModalCobro";
 import { ProductoVenta, VentaPendiente } from "./types";
 import Link from "next/link";
 

@@ -4,9 +4,9 @@
 
 import { useEffect, useState, useRef } from "react";
 import { getProductos, buscarProductosPorAlias, crearVenta } from "@/lib/fetchers/ventas";
-import GridProducto from "./components/GridProducto";
-import BuscadorProductos from "./components/BuscadorProductos";
-import ResumenVenta from "./components/ResumenVenta";
+import GridProducto from "./components/products/GridProducto";
+import BuscadorProductos from "./components/search/BuscadorProductos";
+import ResumenVenta from "./components/cart/ResumenVenta";
 // Utilidades de impresión POS
 import {
   inicializarQZTray,
