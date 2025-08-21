@@ -1,125 +1,137 @@
+// app/utils/imprimir-pos.ts
 /**
- * Módulo de utilidades para impresión con QZ Tray
- *
- * Aquí centralizamos la lógica de:
- *  - Inicialización y reconexión automática al daemon de QZ Tray
- *  - Listado de impresoras disponibles
- *  - Impresión de lotes de texto ESC/POS en un solo envío (buffered)
+ * Utilidades de impresión con QZ Tray (ESC/POS) con fallback a la impresora
+ * predeterminada de Windows cuando no se especifica ninguna.
  */
 
 declare global {
   interface Window { qz: any }
 }
 
-/**
- * Opciones de impresión para QZ Tray.
- * @property nombreImpresora - Nombre exacto de la impresora configurada en QZ Tray.
- * @property tamanoPapel - Tamaño de papel ("58mm" o "80mm").
- */
 export interface OpcionesImpresion {
-  nombreImpresora: string;
+  nombreImpresora?: string;          // opcional: si no se pasa, se usa la default de Windows
   tamanoPapel: "58mm" | "80mm";
 }
 
-/**
- * Inicializa la API de QZ Tray y mantiene la conexión viva.
- * Reintenta conexión cada 3 segundos si falla.
- */
+/* --------------------------- helpers de conexión --------------------------- */
+
+async function waitQZApi(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const tick = () => (window.qz?.api ? resolve() : setTimeout(tick, 150));
+    tick();
+  });
+}
+
+async function ensureConnected(): Promise<void> {
+  const qz = window.qz;
+  if (!qz?.websocket) throw new Error("QZ Tray no está cargado (qz.websocket).");
+  if (qz.websocket.isActive()) return;
+  await qz.websocket.connect();
+}
+
+/* ---------------------------- inicialización QZ ---------------------------- */
+
 export async function inicializarQZTray(): Promise<void> {
+  await waitQZApi();
   const qz = window.qz;
 
-  // Esperar hasta que qz.api exista
-  await new Promise<void>((resolve) => {
-    const intento = () => {
-      if (qz?.api) resolve();
-      else setTimeout(intento, 500);
-    };
-    intento();
-  });
+  // QZ espera una función que DEVUELVA una Promise
+  qz.api.setPromiseType((resolve: any, reject: any) => new Promise(resolve, reject));
 
-  // Usar promesas nativas
-  qz.api.setPromiseType(window.Promise);
+  // (DEV) evita prompts de certificado/firma
+  qz.security.setCertificatePromise((resolve: any) => resolve(""));
+  qz.security.setSignaturePromise((_toSign: any) => (resolve: any) => resolve());
 
-  // Función que intenta conectar y reintenta si falla
-  const conectar = async () => {
-    try {
-      await qz.websocket.connect();
-      console.log("✅ Conectado a QZ Tray");
-    } catch (err) {
-      console.warn("⚠️ QZ Tray conexión fallida, reintentando en 3s", err);
-      setTimeout(conectar, 3000);
+  // reconexión simple
+  const originalDisconnect = qz.websocket.disconnect.bind(qz.websocket);
+  qz.websocket.disconnect = () => {
+    try { originalDisconnect(); } finally {
+      ensureConnected().catch((e: any) => console.warn("Reconexión QZ fallida:", e));
     }
   };
 
-  // Override de disconnect para reconectar automáticamente
-  const desconectarOriginal = qz.websocket.disconnect;
-  qz.websocket.disconnect = () => {
-    desconectarOriginal();
-    conectar();
-  };
+  try {
+    await ensureConnected();
+    console.log("✅ QZ Tray conectado");
+  } catch (err) {
+    console.warn("⚠️ No se pudo conectar QZ en el init:", err);
+  }
+}
 
-  // Lanzar la primera conexión
-  await conectar();
+/* ------------------------- listado / selección seguro ---------------------- */
+
+/** Devuelve la lista de impresoras disponibles (únicas). */
+export async function listarImpresorasDisponibles(): Promise<string[]> {
+  await ensureConnected();
+  const qz = window.qz;
+  const printers = await qz.printers.find("*"); // '*' devuelve todas
+  const list = Array.isArray(printers) ? printers : [String(printers)];
+  // dedup
+  return Array.from(new Set(list));
 }
 
 /**
- * Lista todas las impresoras disponibles en QZ Tray.
- * Garantiza que el WebSocket esté conectado antes de solicitar.
- * @returns Array de nombres de impresora.
+ * Resuelve el nombre de impresora a usar:
+ * 1) Si se pide una y existe, esa.
+ * 2) default del SO (qz.printers.getDefault()) si existe.
+ * 3) "Microsoft Print to PDF" o "Microsoft XPS Document Writer" si existen.
+ * 4) La primera de la lista.
+ * Si no hay ninguna, lanza error.
  */
-export async function listarImpresorasDisponibles(): Promise<string[]> {
+async function resolverImpresoraDeseada(nombreSolicitado?: string): Promise<string> {
+  await ensureConnected();
   const qz = window.qz;
+  const disponibles: string[] = Array.from(new Set(await qz.printers.find("*") || []));
 
-  // Asegurar conexión
-  if (!qz.websocket.isActive()) {
-    await qz.websocket.connect();
+  // 1) nombre solicitado
+  if (nombreSolicitado && disponibles.includes(nombreSolicitado)) return nombreSolicitado;
+
+  // 2) default del SO
+  try {
+    const def = await qz.printers.getDefault();
+    if (def && disponibles.includes(def)) return def;
+  } catch { /* ignore */ }
+
+  // 3) defaults típicos de Windows
+  const candidatos = ["Microsoft Print to PDF", "Microsoft XPS Document Writer"];
+  for (const c of candidatos) {
+    if (disponibles.includes(c)) return c;
   }
 
-  // El wildcard '*' devuelve todas las impresoras
-  return await qz.printers.find("*");
+  // 4) primera disponible
+  if (disponibles.length > 0) return disponibles[0];
+
+  // sin impresoras
+  throw new Error(
+    "No se encontró ninguna impresora disponible.\n" +
+    "Instala/activa una impresora del sistema (por ejemplo 'Microsoft Print to PDF') y vuelve a intentar."
+  );
 }
 
-/**
- * Imprime un lote de texto ESC/POS en un solo envío (buffered).
- * @param loteTexto Array de líneas de texto a imprimir.
- * @param opciones Configuración de impresora y papel.
- */
+/* -------------------------------- impresión -------------------------------- */
+
 export async function imprimirLoteTexto(
   loteTexto: string[],
   opciones: OpcionesImpresion
 ): Promise<void> {
+  await ensureConnected();
   const qz = window.qz;
 
-  // Inicializar comandos ESC/POS
+  // Resuelve la impresora final con fallback a default Windows
+  const impresora = await resolverImpresoraDeseada(opciones.nombreImpresora);
+
+  // comandos ESC/POS mínimos
   const ESC = "\x1B";
-  const INIT_PRINTER = ESC + "@";   // Inicializar impresora
-  const CUT_PAPER    = "\x1D\x56\x41\x10"; // Cortar papel completo
+  const INIT_PRINTER = ESC + "@";
+  const CUT_PAPER = "\x1D\x56\x41\x10";
 
-  // Montar payload en un único arreglo para buffering
-  const payload = [
-    INIT_PRINTER,
-    loteTexto.join("\n") + "\n",
-    CUT_PAPER
-  ];
+  const payload = [INIT_PRINTER, loteTexto.join("\n") + "\n", CUT_PAPER];
 
-  // Asegurar que la conexión WebSocket esté activa
-  if (!qz.websocket.isActive()) {
-    await qz.websocket.connect();
-  }
-
-  // Validar opción de impresora
-  const impresora = opciones.nombreImpresora;
-  if (!impresora) {
-    throw new Error("Debe especificarse un nombre de impresora.");
-  }
-
-  // Crear configuración ESC/POS: encoding y tamaño de papel
   const config = qz.configs.create(impresora, {
     encoding: "ISO-8859-1",
-    size: opciones.tamanoPapel
+    size: opciones.tamanoPapel,
   });
 
-  // Enviar el lote a la impresora
   await qz.print(config, payload);
   console.log(`🖨️ Impresión enviada a '${impresora}'`);
 }
