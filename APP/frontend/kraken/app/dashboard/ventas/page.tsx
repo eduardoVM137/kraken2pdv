@@ -27,13 +27,25 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { useCart } from "./hooks/useCart";
 import { usePendingSales } from "./hooks/usePendingSales";
 import { usePrinters } from "./hooks/usePrinters";
+import PrinterSelector from "./components/settings/PrinterSelector";
+import PrinterPanel from "./components/settings/PrinterPanel";
 
 export default function VentasPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [abrirCarritoMovil, setAbrirCarritoMovil] = useState(false);
 
   // 🔌 Impresoras POS (QZ)
-  const { impresoras, nombreImpresora, setNombreImpresora, tamanoPapel } = usePrinters("POS-58");
+const {
+  impresoras,       // verificadas por QZ
+  visibles,         // QZ + defaults Windows
+  noVerificadas,
+  nombreImpresora, setNombreImpresora,
+  tamanoPapel, setTamanoPapel,
+  refreshPrinters,
+  pos58Disponible,
+  seleccionDisponible,
+  panelColapsado, setPanelColapsado,
+} = usePrinters("58mm");
 
   // 🛒 Carrito (modular)
   const {
@@ -245,8 +257,25 @@ export default function VentasPage() {
           <ResizableHandle withHandle />
 
           {/* Panel carrito (desktop) */}
-          <ResizablePanel defaultSize={35} minSize={15} className="h-full min-h-0 hidden lg:block">
-            <div className="flex flex-col h-full min-h-0 bg-white">
+<ResizablePanel defaultSize={35} minSize={15} className="h-full min-h-0 hidden lg:block">
+  <div className="flex flex-col h-full min-h-0 bg-white">
+    <PrinterPanel
+      visibles={visibles}
+      verificadas={impresoras}
+      noVerificadas={noVerificadas}
+      nombreImpresora={nombreImpresora}
+      setNombreImpresora={setNombreImpresora}
+      tamanoPapel={tamanoPapel}
+      setTamanoPapel={setTamanoPapel}
+      cargando={false}
+      pos58Disponible={pos58Disponible}
+      seleccionDisponible={seleccionDisponible}
+      panelColapsado={panelColapsado}
+      setPanelColapsado={setPanelColapsado}
+      refreshPrinters={refreshPrinters}
+    />
+
+    
               <ResumenVenta
                 cliente={cliente} setCliente={setCliente}
                 vendedor={vendedor} setVendedor={setVendedor}
@@ -264,6 +293,7 @@ export default function VentasPage() {
                 handleImprimirCotizacion={handleImprimirCotizacion}
               />
             </div>
+            
           </ResizablePanel>
         </ResizablePanelGroup>
 
