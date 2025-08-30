@@ -174,24 +174,27 @@ export default function ResumenVenta(props: Props) {
           </ContextMenu>
         </div>
 
-        {/* Total grande */}
-        <div className="mt-6 text-center">
-          <span className="text-red-600 text-4xl font-extrabold">
-            ${total.toFixed(2)}
-          </span>
-          <div className="uppercase text-sm text-red-500 tracking-wide">Total a Pagar</div>
-        </div>
+
       </div>
 
-      {/* Pie: botón Cobrar */}
-      <div className="sticky bottom-0 p-4 border-t bg-white z-10">
-        <ModalCobro
-          open={mostrarModal}
-          setOpen={setMostrarModal}
-          total={total}
-          handleCobrar={handleCobrar}
-          disabled={venta.length === 0}
-        />
+      {/* Pie: total + botón Cobrar */}
+      <div className="sticky bottom-0 z-10 border-t bg-white">
+        <div className="px-4 pt-3 pb-2 text-center">
+          <div className="text-xs uppercase tracking-wide text-red-500">Total a pagar</div>
+          <div className="font-extrabold text-4xl text-red-600 leading-none mt-1">
+            ${total.toFixed(2)}
+          </div>
+        </div>
+
+        <div className="p-4 pt-2">
+          <ModalCobro
+            open={mostrarModal}
+            setOpen={setMostrarModal}
+            total={total}
+            handleCobrar={handleCobrar}
+            disabled={venta.length === 0}
+          />
+        </div>
       </div>
     </div>
   );
