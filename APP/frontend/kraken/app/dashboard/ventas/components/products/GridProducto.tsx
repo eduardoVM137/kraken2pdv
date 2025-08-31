@@ -1,117 +1,149 @@
-
-// components/GridProducto.tsx
+// app/dashboard/ventas/components/products/GridProducto.tsx
 "use client";
 
-import { useMemo, useState }    from "react";
-import ProductoCard             from "./ProductoCard";
-import PaginacionProductos      from "./PaginacionProductos";
-import { Button }               from "@/components/ui/button";
-import { ScrollArea }           from "@/components/ui/scroll-area";
+import React, { useDeferredValue, useMemo } from "react";
+import ProductoCard from "./ProductoCard";
+import PaginacionProductos from "./PaginacionProductos";
+
+type Producto = {
+  detalle_producto_id: number | string;
+  nombre_calculado: string;
+  fotos?: string[];
+  precios?: { precio_venta: string | number; presentacion_id?: number | null }[];
+  // ...otros campos que uses en ProductoCard
+};
 
 interface Props {
-  productos: any[];
-  onAgregar: (p: any) => void;
+  productos: Producto[];
+  onAgregar: (p: Producto) => void;
+
+  // Estado de búsqueda
   busqueda: string;
+  buscarPorAlias: boolean;
+
+  // Paginación
   paginaActual: number;
   setPaginaActual: (n: number) => void;
   productosPorPagina?: number;
-  buscarPorAlias?: boolean;
+
+  // UI/estado
+  isSearching?: boolean;
+
+  // Orden opcional
+  orden?: "nombre" | "precio";
 }
 
 export default function GridProducto({
   productos,
   onAgregar,
   busqueda,
+  buscarPorAlias,
   paginaActual,
   setPaginaActual,
-  productosPorPagina = 15,
-  buscarPorAlias = false,
+  productosPorPagina = 24,
+  isSearching = false,
+  orden = "nombre",
 }: Props) {
+  // “Suaviza” las entradas para no bloquear la UI mientras cambian
+  const deferredBusqueda = useDeferredValue(busqueda);
+  const deferredProductos = useDeferredValue(productos);
 
-  /* ────── orden ────── */
-  const [orden, setOrden] = useState<"nombre" | "precio">("nombre");
+  // Collator (más rápido y consistente que llamar localeCompare en cada render)
+  const collator = useMemo(
+    () => new Intl.Collator("es", { numeric: true, sensitivity: "base" }),
+    []
+  );
 
-  /* ────── filtro + orden ────── */
-const filtrados = useMemo(() => {
-  let res = [...productos];
+  // Filtrado sólo cuando NO es alias (cuando es alias, ya llega filtrado desde el servidor)
+  const filtrados = useMemo(() => {
+    let list = deferredProductos;
 
-  // Solo filtramos por nombre si no es búsqueda por alias
-  if (!buscarPorAlias && busqueda.trim()) {
-    res = res.filter((p) =>
-      p.nombre_calculado?.toLowerCase().includes(busqueda.toLowerCase())
-    );
+    if (!buscarPorAlias && deferredBusqueda.trim()) {
+      const lc = deferredBusqueda.trim().toLowerCase();
+      list = list.filter((p) =>
+        (p.nombre_calculado || "").toLowerCase().includes(lc)
+      );
+    }
+
+    // Orden barato
+    if (orden === "nombre") {
+      list = [...list].sort((a, b) =>
+        collator.compare(a.nombre_calculado ?? "", b.nombre_calculado ?? "")
+      );
+    } else {
+      // precio: usa el primer precio (ajústalo si tu UI muestra otro)
+      list = [...list].sort((a, b) => {
+        const pa = Number(a.precios?.[0]?.precio_venta ?? 0);
+        const pb = Number(b.precios?.[0]?.precio_venta ?? 0);
+        return pa - pb;
+      });
+    }
+
+    return list;
+  }, [deferredProductos, deferredBusqueda, buscarPorAlias, orden, collator]);
+
+  // Lista “deferida” para que la paginación/render no se sienta brusca
+  const smoothList = useDeferredValue(filtrados);
+
+  // Paginación
+  const totalPaginas = Math.max(1, Math.ceil(smoothList.length / productosPorPagina));
+  const pageStart = (paginaActual - 1) * productosPorPagina;
+  const pageEnd = paginaActual * productosPorPagina;
+  const pageItems = smoothList.slice(pageStart, pageEnd);
+
+  // Si se cambia el término y la página queda fuera de rango, vuelve a 1 (defensivo)
+  if (paginaActual > totalPaginas && totalPaginas > 0) {
+    setTimeout(() => setPaginaActual(1), 0);
   }
 
-  // En ambos modos (nombre o alias), sí podemos ordenar
-  res.sort((a, b) =>
-    orden === "nombre"
-      ? a.nombre_calculado.localeCompare(b.nombre_calculado)
-      : Number(a.precios?.[0]?.precio_venta ?? 0) -
-        Number(b.precios?.[0]?.precio_venta ?? 0)
-  );
-
-  return res;
-}, [productos, busqueda, orden, buscarPorAlias]);
-
-
-  /* ────── paginación ────── */
-  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / productosPorPagina));
-  const pageItems    = filtrados.slice(
-    (paginaActual - 1) * productosPorPagina,
-    paginaActual * productosPorPagina,
-  );
-
-  /* ────── render ────── */
   return (
-    <div className="flex flex-col h-full min-h-0">
-      {/* controles */}
-      <div className="flex flex-wrap gap-4 items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm">Ordenar por:</span>
-          <Button
-            variant={orden === "nombre" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setOrden("nombre")}
-          >
-            Nombre
-          </Button>
-          <Button
-            variant={orden === "precio" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setOrden("precio")}
-          >
-            Precio
-          </Button>
+    <div className="flex flex-col gap-3">
+      {/* Encabezado compacto con contador */}
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-muted-foreground">
+          {isSearching ? "Buscando…" : `${smoothList.length} resultado(s)`}
         </div>
 
         <PaginacionProductos
-          totalPaginas={totalPaginas}
           paginaActual={paginaActual}
-          setPaginaActual={setPaginaActual}
+          totalPaginas={totalPaginas}
+          onChange={(p) => setPaginaActual(p)}
         />
       </div>
 
-      {/* grid con scroll vertical */}
-      <ScrollArea className="flex-1 min-h-0 pr-2 overflow-x-hidden">
-        {pageItems.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-muted-foreground">
-            Sin resultados
-          </div>
-        ) : (
-          <div
-            className="grid gap-4 pb-4
-                       [grid-template-columns:repeat(auto-fit,minmax(200px,1fr))]"
-          >
-            {pageItems.map((p) => (
-              <ProductoCard
-                key={p.detalle_producto_id}
-                producto={p}
-                onAgregar={onAgregar}
-              />
-            ))}
-          </div>
-        )}
-      </ScrollArea>
+      {/* Grid de tarjetas o skeletons */}
+      {pageItems.length === 0 && !isSearching ? (
+        <div className="h-[200px] flex items-center justify-center text-sm text-muted-foreground rounded-md border">
+          Sin resultados
+        </div>
+      ) : (
+        <div className="grid gap-4 pb-4 [grid-template-columns:repeat(auto-fit,minmax(220px,1fr))]">
+          {(isSearching ? Array.from({ length: Math.min(productosPorPagina, 12) }) : pageItems).map(
+            (p, i) =>
+              isSearching ? (
+                <div
+                  key={`sk-${i}`}
+                  className="h-[300px] w-full max-w-[260px] mx-auto rounded-lg border bg-white shadow-sm animate-pulse"
+                />
+              ) : (
+                <ProductoCard
+                  key={String((p as Producto).detalle_producto_id ?? i)}
+                  producto={p as Producto}
+                  onAgregar={() => onAgregar(p as Producto)}
+                />
+              )
+          )}
+        </div>
+      )}
+
+      {/* Paginación al pie (opcional) */}
+      <div className="flex items-center justify-end">
+        <PaginacionProductos
+          paginaActual={paginaActual}
+          totalPaginas={totalPaginas}
+          onChange={(p) => setPaginaActual(p)}
+        />
+      </div>
     </div>
   );
 }

@@ -12,25 +12,38 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://192.168.1.69:30
  */
 async function handleResponse(res: Response, context: string) {
   console.log("ENV API BASE URL:", process.env.NEXT_PUBLIC_API_BASE_URL);
-
   const data = await res.json();
   if (!res.ok) {
-    console.error(`❌ [${context}]`, data.message || res.statusText);
-    throw new Error(data.message || `HTTP ${res.status}`);
+    console.error(`❌ [${context}]`, data?.message || res.statusText);
+    throw new Error(data?.message || `HTTP ${res.status}`);
   }
-  return data.data;
+  // Desenvuelve { data: ... }
+  return data?.data;
 }
-
+// 🔽 NUEVO: apiGet con opciones
+type GetOptions = {
+  signal?: AbortSignal;  // para cancelación
+  soft404?: boolean;     // si 404 => devolver [] en lugar de error
+};
 /**
  * Realiza un GET a la API base
  * @param path - ruta relativa a BASE_URL
  * @param context - contexto del módulo (ej. "getProductos")
  * @returns T - respuesta del backend, campo `data`
  */
-export async function apiGet<T = any>(path: string, context = `GET ${path}`): Promise<T> {
+export async function apiGet<T = any>(
+  path: string,
+  context = `GET ${path}`,
+  opts: GetOptions = {}
+): Promise<T> {
   console.log("ENV API BASE URL:", process.env.NEXT_PUBLIC_API_BASE_URL);
+  const url = `${BASE_URL}${path}`;
+  const res = await fetch(url, { signal: opts.signal });
 
-  const res = await fetch(`${BASE_URL}${path}`);
+  if (opts.soft404 && res.status === 404) {
+    // 404 tratado como “sin resultados”
+    return [] as unknown as T;
+  }
   return await handleResponse(res, context);
 }
 

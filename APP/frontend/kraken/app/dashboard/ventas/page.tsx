@@ -1,7 +1,7 @@
 // app/dashboard/ventas/page.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useDeferredValue, useTransition } from "react";
 import Script from "next/script";
 import { ShoppingCart } from "lucide-react";
 
@@ -27,7 +27,6 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/co
 import { useCart } from "./hooks/useCart";
 import { usePendingSales } from "./hooks/usePendingSales";
 import { usePrinters } from "./hooks/usePrinters";
-import PrinterSelector from "./components/settings/PrinterSelector";
 import PrinterPanel from "./components/settings/PrinterPanel";
 
 export default function VentasPage() {
@@ -73,6 +72,16 @@ const {
   const [cliente, setCliente] = useState("");
   const [vendedor, setVendedor] = useState("");
   const [mostrarModal, setMostrarModal] = useState(false);
+ 
+
+// [SEARCH-OPT] deferred & transition
+const deferredBusqueda = useDeferredValue(busqueda);
+const [isSearching, startTransition] = useTransition();
+
+// [SEARCH-OPT] cache + cancelación para alias
+const aliasCache = useRef<Map<string, any[]>>(new Map());
+const lastCtrl = useRef<AbortController | null>(null);
+
 
   // ▶️ Carga inicial de productos
   useEffect(() => {
@@ -82,20 +91,63 @@ const {
   }, []);
 
   // 🔍 Filtro reactivo (local o por alias vía API)
-  useEffect(() => {
-    const term = busqueda.trim().toLowerCase();
-    if (!term) { setProductos(productosOriginales); return; }
+useEffect(() => {
+  const term = deferredBusqueda.trim().toLowerCase();
 
-    if (buscarPorAlias) {
-      buscarProductosPorAlias(term).then(setProductos).catch(console.error);
-    } else {
-      setProductos(productosOriginales.filter((p) =>
-        p.nombre_calculado?.toLowerCase().includes(term)
-      ));
+  // 1) Sin término → restaurar catálogo original
+  if (!term) {
+    startTransition(() => {
+      setProductos(productosOriginales);
+      setPaginaActual(1);
+    });
+    return;
+  }
+
+  // 2) Modo NOMBRE → filtrado local
+  if (!buscarPorAlias) {
+    startTransition(() => {
+      const next = productosOriginales.filter((p) =>
+        (p.nombre_calculado || "").toLowerCase().includes(term)
+      );
+      setProductos(next);
+      setPaginaActual(1);
+    });
+    return;
+  }
+
+  // 3) Modo ALIAS → caché cliente
+  if (aliasCache.current.has(term)) {
+    startTransition(() => {
+      setProductos(aliasCache.current.get(term)!);
+      setPaginaActual(1);
+    });
+    return;
+  }
+
+  // 4) Modo ALIAS → llamada a API con cancelación
+  lastCtrl.current?.abort();
+  const ctrl = new AbortController();
+  lastCtrl.current = ctrl;
+
+  (async () => {
+    try {
+ const lista = await buscarProductosPorAlias(term, { signal: ctrl.signal });
+
+
+      aliasCache.current.set(term, lista);
+      startTransition(() => {
+        setProductos(lista);
+        setPaginaActual(1);
+      });
+    } catch (err: any) {
+      if (err?.name !== "AbortError") {
+        console.error("Alias search error:", err);
+      }
     }
-    setPaginaActual(1);
-  }, [busqueda, buscarPorAlias, productosOriginales]);
+  })();
 
+  return () => ctrl.abort();
+}, [deferredBusqueda, buscarPorAlias, productosOriginales, setPaginaActual, setProductos]);
   // ⌨️ Enter en buscador (=calc y 5*alias)
  // ENTER en CONSULTA: nunca agrega, solo busca
 const handleSearchEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -133,11 +185,7 @@ const handleSearchEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
   setPaginaActual(1);
   inputRef.current?.select(); // deja el texto seleccionado para sobreescribir
 };
-
-// Debajo de handleSearchEnter
- // Agregar desde el escáner: code puede venir como "ABC", "5*ABC" o "ABC*0.5" ya parseado
- // Agregar desde el escáner (ya viene qty parseada)
- // Agregar desde el escáner (ya viene qty parseada)
+ // Agregar desde el escáner: code puede venir como "ABC", "5*ABC" o "ABC*0.5" ya parseado 
 const handleScanEnter = async ({ code, qty }: { code: string; qty: number }) => {
   // Dedupe global: si llega el mismo code|qty en <350 ms, ignorar
   const key = `${code}|${qty}`;
@@ -171,8 +219,6 @@ const handleScanEnter = async ({ code, qty }: { code: string; qty: number }) => 
     alert("Error buscando producto por alias");
   }
 };
-
-
   // ⚡ Atajos
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -186,7 +232,13 @@ const handleScanEnter = async ({ code, qty }: { code: string; qty: number }) => 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [venta, pagos, descuento, cliente, vendedor, limpiar, guardar, limpiarTodo]);
-
+useEffect(() => {
+  aliasCache.current.clear();
+  if (!busqueda.trim() && buscarPorAlias) {
+    setProductos(productosOriginales);
+    setPaginaActual(1);
+  }
+}, [buscarPorAlias]); // eslint-disable-line
   // 🗂️ Pendientes helpers (adaptadores para ResumenVenta)
   const agregarVentaPendiente = () => guardar(venta, cliente, vendedor, descuento);
   const cargarVentaPendiente = (p: any) => {
@@ -266,7 +318,7 @@ const handleScanEnter = async ({ code, qty }: { code: string; qty: number }) => 
                 busqueda={busqueda}
                 setBusqueda={setBusqueda}
                 buscarPorAlias={buscarPorAlias}
-                setBuscarPorAlias={setBuscarPorAlias}
+  setBuscarPorAlias={(v) => { setBuscarPorAlias(v); aliasCache.current.clear(); }}
                 setPaginaActual={setPaginaActual}
                 onSearchEnter={handleSearchEnter}
                   onScanEnter={handleScanEnter}   // <-- NUEVO
@@ -274,14 +326,17 @@ const handleScanEnter = async ({ code, qty }: { code: string; qty: number }) => 
               />
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <ScrollArea className="flex-1 min-h-0">
-                  <GridProducto
-                    productos={productos}
-                    onAgregar={agregarProducto}
-                    busqueda={busqueda}
-                    paginaActual={paginaActual}
-                    setPaginaActual={setPaginaActual}
-                    buscarPorAlias={buscarPorAlias}
-                  />
+      <GridProducto
+  productos={productos}
+  onAgregar={agregarProducto}
+  busqueda={busqueda}
+  buscarPorAlias={buscarPorAlias}
+  paginaActual={paginaActual}
+  setPaginaActual={setPaginaActual}
+  productosPorPagina={24}
+  isSearching={isSearching}
+/>
+
                 </ScrollArea>
               </div>
             </div>

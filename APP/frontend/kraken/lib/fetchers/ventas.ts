@@ -93,20 +93,29 @@ export async function mostrarVentas(): Promise<DetalleProducto[]> {
  * @param busqueda Texto a buscar (puede ser nombre o código alterno)
  * @returns Productos que coincidan con el término de búsqueda
  */
-export async function buscarProductosPorAlias(busqueda: string): Promise<DetalleProducto[]> {
+
+
+ // lib/fetchers/ventas.ts
+export async function buscarProductosPorAlias(
+  busqueda: string,
+  opts?: { signal?: AbortSignal }
+) {
   try {
-    return await apiGet(`/api/venta/productos-alias?busqueda=${encodeURIComponent(busqueda)}`, "buscarProductosPorAlias");
+    // apiGet ya desenvuelve {data: [...]}
+    return await apiGet(
+      `/api/venta/productos-alias?busqueda=${encodeURIComponent(busqueda)}`,
+      "buscarProductosPorAlias",
+      { signal: opts?.signal, soft404: true }
+    );
   } catch (error) {
+    // Abort: ignora
+    if ((error as any)?.name === "AbortError") return [];
     console.error("❌ Error en buscarProductosPorAlias:", error);
     return [];
   }
 }
 
-/**
- * Crea una nueva venta a partir del payload enviado.
- * @param payload Objeto con datos de la venta
- * @returns Venta creada (o error si falla)
- */
+ 
 export async function crearVenta(payload: any) {
   return await apiPost("/api/venta", payload, "crearVenta");
 }

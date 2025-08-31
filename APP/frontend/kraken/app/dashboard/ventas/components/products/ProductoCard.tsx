@@ -1,7 +1,7 @@
 // components/ProductoCard.tsx
 "use client";
+import React, { useEffect, useRef, useState, memo, MouseEvent } from "react";
 
-import { useState, MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,33 +18,104 @@ import {
   TooltipProvider,
 } from "@/components/ui/tooltip";
 
+/* ============================ SmartImage ============================ */
+const DEFAULT_IMG = "/default-product.jpg";
+
+type SmartImageProps = {
+  src?: string | null;
+  alt: string;
+  className?: string;
+  boxClassName?: string; // reserva de espacio para evitar saltos
+};
+
 /**
- * Props for ProductoCard component
+ * - Siempre muestra DEFAULT_IMG de inicio (nunca src="").
+ * - Cuando entra al viewport, precarga la real y hace swap con fade-in.
+ * - Shimmer mientras carga.
+ */
+const SmartImage = memo(function SmartImage({
+  src,
+  alt,
+  className = "h-full w-auto object-contain",
+  boxClassName = "h-28 w-full",
+}: SmartImageProps) {
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const [displaySrc, setDisplaySrc] = useState<string>(DEFAULT_IMG);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+
+    const real = (src && src.trim().length > 0 ? src : null) || null;
+    if (!real) return;
+
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+
+        const img = new Image();
+        img.decoding = "async";
+        img.loading = "eager";
+        img.src = real;
+        img.onload = () => setDisplaySrc(real);
+        img.onerror = () => setDisplaySrc(DEFAULT_IMG);
+
+        io.disconnect();
+      },
+      { rootMargin: "250px 0px" }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [src]);
+
+  return (
+    <div
+      ref={boxRef}
+      className={`relative ${boxClassName} flex items-center justify-center overflow-hidden rounded-md`}
+      style={{ contentVisibility: "auto" as any, containIntrinsicSize: "112px 240px" as any }}
+    >
+      {!loaded && <div className="absolute inset-0 animate-pulse bg-muted/60" />}
+
+      <img
+        src={displaySrc}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        // @ts-ignore
+        fetchPriority="low"
+        className={`${className} transition-opacity duration-200 ${
+          loaded ? "opacity-100" : "opacity-0"
+        }`}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          if (displaySrc !== DEFAULT_IMG) setDisplaySrc(DEFAULT_IMG);
+          else setLoaded(true);
+        }}
+      />
+    </div>
+  );
+});
+/* ========================== /SmartImage ============================= */
+
+/**
+ * Props del componente
  */
 interface Props {
   producto: {
-    /** Identificador principal para rutas de edición */
     id: number;
-    /** Identificador de detalle para agregar al carrito */
     detalle_producto_id: number;
-    /** Nombre calculado completo del producto */
     nombre_calculado: string;
-    /** URLs de imágenes (primera utilizada como miniatura) */
     fotos?: string[];
-    /** Lista de precios por presentación */
     precios?: { presentacion_id?: number; precio_venta: string }[];
-    /** Opciones de presentaciones disponibles */
     presentaciones?: {
       presentacion_id?: number;
       nombre_presentacion: string;
       cantidad_presentacion: number;
     }[];
-    /** Arrays de inventario asociados */
     inventarios: number[];
-    /** Stock total si aplica */
     stock_total?: number;
   };
-  /** Función callback al agregar producto al carrito */
   onAgregar: (item: {
     id: number;
     nombre: string;
@@ -56,13 +127,11 @@ interface Props {
 }
 
 /**
- * Componente de tarjeta para mostrar un producto,
- * con menú contextual para acciones y soporte de tooltips.
+ * Tarjeta de producto con menú contextual y tooltips.
  */
-export default function ProductoCard({ producto, onAgregar }: Props) {
+function ProductoCard({ producto, onAgregar }: Props) {
   const router = useRouter();
 
-  // Estado local: presentación seleccionada inicialmente
   const [seleccionada, setSeleccionada] = useState(
     producto.presentaciones?.[0] || {
       presentacion_id: undefined,
@@ -71,10 +140,6 @@ export default function ProductoCard({ producto, onAgregar }: Props) {
     }
   );
 
-  /**
-   * Devuelve el precio numérico de la presentación seleccionada,
-   * o precio base si no hay correspondencia.
-   */
   const seleccionarPrecio = (): number => {
     const porPres = producto.precios?.find(
       (p) => p.presentacion_id === seleccionada.presentacion_id
@@ -83,10 +148,6 @@ export default function ProductoCard({ producto, onAgregar }: Props) {
     return parseFloat(porPres?.precio_venta || base?.precio_venta || "0");
   };
 
-  /**
-   * Callback para agregar el producto al carrito,
-   * construyendo el nombre y cantidad con la presentación.
-   */
   const agregar = () => {
     const cantidad = seleccionada.cantidad_presentacion || 1;
     const nombre = seleccionada.presentacion_id
@@ -103,31 +164,26 @@ export default function ProductoCard({ producto, onAgregar }: Props) {
     });
   };
 
-  /**
-   * Navega a la página de edición dentro del dashboard
-   */
   const goEditar = () => {
     router.push(`/dashboard/productos/editar/${producto.detalle_producto_id}`);
   };
 
   return (
     <ContextMenu>
-      {/* El trigger engloba toda la tarjeta */}
       <ContextMenuTrigger asChild>
         <div
+          style={{ contentVisibility: "auto" as any, containIntrinsicSize: "300px 250px" as any }}
           className="border rounded-lg p-2 bg-white shadow hover:shadow-md transition-all h-[300px] w-full max-w-[250px] mx-auto flex flex-col justify-between cursor-pointer"
           onClick={(e: MouseEvent) => {
-            // Click general en tarjeta agrega al carrito
-            if (!(e.target as HTMLElement).closest("button")) {
-              agregar();
-            }
+            if (!(e.target as HTMLElement).closest("button")) agregar();
           }}
         >
-          {/* Imagen del producto */}
-          <div className="flex justify-center items-center h-28">
-            <img
-              src={producto.fotos?.[0] || "/default-product.jpg"}
-              alt={producto.nombre_calculado}
+          {/* Imagen diferida con fallback a default */}
+          <div className="flex justify-center items-center">
+            <SmartImage
+              src={producto.fotos?.[0] || null}
+              alt={producto.nombre_calculado ?? "Producto"}
+              boxClassName="h-28 w-full"
               className="h-full w-auto object-contain"
             />
           </div>
@@ -141,40 +197,38 @@ export default function ProductoCard({ producto, onAgregar }: Props) {
               ${seleccionarPrecio().toFixed(2)}
             </p>
             {producto.stock_total != null && (
-              <p className="text-xs text-muted-foreground">
-                Stock: {producto.stock_total}
-              </p>
+              <p className="text-xs text-muted-foreground">Stock: {producto.stock_total}</p>
             )}
           </div>
 
-          {/* Selector de presentaciones con tooltip, y captura de click para evitar propagar */}
-          {producto.presentaciones && (
+          {/* Presentaciones */}
+          {!!producto.presentaciones?.length && (
             <TooltipProvider>
               <div
                 className="flex gap-1 overflow-x-auto mt-2 px-1"
                 onClick={(e: MouseEvent) => e.stopPropagation()}
               >
-                {producto.presentaciones.map((p) => (
-                  <Tooltip key={p.presentacion_id}>
+                {producto.presentaciones.map((p, idx) => (
+                  <Tooltip key={p.presentacion_id ?? idx}>
                     <TooltipTrigger asChild>
-                        <Button
-                          variant={seleccionada.presentacion_id === p.presentacion_id ? "default" : "ghost"}
-                          size="sm"
-                          className={`
-                            border text-[11px] px-2 h-6 min-w-[40px] justify-center
-                            rounded-md transition-all
-                            ${seleccionada.presentacion_id === p.presentacion_id
+                      <Button
+                        variant={
+                          seleccionada.presentacion_id === p.presentacion_id ? "default" : "ghost"
+                        }
+                        size="sm"
+                        className={`border text-[11px] px-2 h-6 min-w-[40px] justify-center rounded-md transition-all
+                          ${
+                            seleccionada.presentacion_id === p.presentacion_id
                               ? "bg-black text-white border-black"
-                              : "bg-muted text-gray-800 hover:border-gray-500"}
-                          `}
-                          onClick={(e: MouseEvent) => {
-                            e.stopPropagation();
-                            setSeleccionada(p);
-                          }}
-                        >
-                              {p.nombre_presentacion}
-                        </Button>
-
+                              : "bg-muted text-gray-800 hover:border-gray-500"
+                          }`}
+                        onClick={(e: MouseEvent) => {
+                          e.stopPropagation();
+                          setSeleccionada(p);
+                        }}
+                      >
+                        {p.nombre_presentacion}
+                      </Button>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>{p.nombre_presentacion}</p>
@@ -187,16 +241,14 @@ export default function ProductoCard({ producto, onAgregar }: Props) {
         </div>
       </ContextMenuTrigger>
 
-      {/* Menu contextual con acciones */}
+      {/* Menú contextual */}
       <ContextMenuContent align="end">
-        <ContextMenuItem onSelect={agregar}>
-          Agregar al carrito
-        </ContextMenuItem>
+        <ContextMenuItem onSelect={agregar}>Agregar al carrito</ContextMenuItem>
         <ContextMenuSeparator />
-        <ContextMenuItem onSelect={goEditar}>
-          Editar producto
-        </ContextMenuItem>
+        <ContextMenuItem onSelect={goEditar}>Editar producto</ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
   );
 }
+
+export default memo(ProductoCard);

@@ -1,28 +1,19 @@
 // app/dashboard/ventas/components/search/BuscadorProductos.tsx
 "use client";
 
-import React, {
-  forwardRef,
-  useEffect,
-  useRef,
-  useState,
-  KeyboardEvent,
-} from "react";
+import React, { forwardRef, useEffect, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 
 interface Props {
-  // Consulta (NO agrega)
   busqueda: string;
   setBusqueda: (value: string) => void;
   setPaginaActual: (value: number) => void;
   buscarPorAlias: boolean;
   setBuscarPorAlias: (value: boolean) => void;
   onSearchEnter: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-
-  // Escáner (SÍ agrega) — opcional para evitar crash si se olvida pasarlo
   onScanEnter?: (args: { code: string; qty: number; raw: string }) => void;
 }
 
@@ -30,7 +21,11 @@ interface Props {
 function parseQtyCode(rawIn: string): { code: string; qty: number } | null {
   const raw = rawIn.trim();
   if (!raw) return null;
-  const parts = raw.split("*").map((s) => s.trim()).filter(Boolean);
+  const parts = rawIn
+    .trim()
+    .split("*")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const parseQty = (s: string) => {
     const t = s.replace(",", ".");
@@ -48,8 +43,6 @@ function parseQtyCode(rawIn: string): { code: string; qty: number } | null {
   return { code: raw, qty: 1 };
 }
 
-// …imports y Props iguales…
-
 const BuscadorProductos = forwardRef<HTMLInputElement, Props>(
   (
     {
@@ -63,9 +56,10 @@ const BuscadorProductos = forwardRef<HTMLInputElement, Props>(
     },
     ref
   ) => {
-    // ----- Debounce de consulta (igual que ya tienes) -----
+    /* ---------------- Debounce de consulta ---------------- */
     const [localQ, setLocalQ] = useState(busqueda);
     useEffect(() => setLocalQ(busqueda), [busqueda]);
+
     useEffect(() => {
       const t = setTimeout(() => {
         if (localQ === busqueda) return;
@@ -78,27 +72,36 @@ const BuscadorProductos = forwardRef<HTMLInputElement, Props>(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [localQ]);
 
-    // ----- Refs -----
+    /* ----------------------- Refs ------------------------- */
     const consultaRef = useRef<HTMLInputElement>(null);
     const scanRef = useRef<HTMLInputElement>(null);
     useEffect(() => {
       if (typeof ref === "function") ref(consultaRef.current!);
-      else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = consultaRef.current!;
+      else if (ref)
+        (ref as React.MutableRefObject<HTMLInputElement | null>).current =
+          consultaRef.current!;
     }, [ref]);
 
-    // Helper: enfocar + seleccionar
+    /* ------------- Helpers de foco/selección -------------- */
     const focusSelect = (el?: HTMLInputElement | null) => {
       if (!el) return;
       requestAnimationFrame(() => {
         el.focus();
-        try { el.select(); } catch {}
+        try {
+          el.select();
+        } catch {}
       });
     };
 
-    // ----- “Tab chord” -----
+    /* ----------------- Tab “chord” UX --------------------- */
     const chordTimeout = useRef<number | null>(null);
-    const [chordFrom, setChordFrom] = useState<"consulta" | "scanner" | null>(null);
-    const beginChord = (from: "consulta" | "scanner", onExpire: () => void) => {
+    const [chordFrom, setChordFrom] = useState<"consulta" | "scanner" | null>(
+      null
+    );
+    const beginChord = (
+      from: "consulta" | "scanner",
+      onExpire: () => void
+    ) => {
       setChordFrom(from);
       if (chordTimeout.current) window.clearTimeout(chordTimeout.current);
       chordTimeout.current = window.setTimeout(() => {
@@ -111,13 +114,12 @@ const BuscadorProductos = forwardRef<HTMLInputElement, Props>(
       setChordFrom(null);
     };
 
-    // ----- Deduplicador de escaneo (evita CR+LF doble Enter) -----
+    /* -------------- Dedupe rápido de escáner -------------- */
     const lastScanRef = useRef<{ raw: string; t: number }>({ raw: "", t: 0 });
     const processingRef = useRef(false);
 
-    // ----- Handlers -----
+    /* ------------------- Handlers ------------------------- */
     const handleConsultaKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-      // Ctrl/Cmd + / => escáner
       if ((e.ctrlKey || e.metaKey) && e.key === "/") {
         e.preventDefault();
         focusSelect(scanRef.current);
@@ -133,13 +135,13 @@ const BuscadorProductos = forwardRef<HTMLInputElement, Props>(
       }
       if (chordFrom === "consulta") {
         const k = e.key.toLowerCase();
-        if (k === "s") { // Tab + s => escáner
+        if (k === "s") {
           e.preventDefault();
           resolveChord();
           focusSelect(scanRef.current);
           return;
         }
-        if (k === "t") { // Tab + t => alternar tipo
+        if (k === "t") {
           e.preventDefault();
           resolveChord();
           setBuscarPorAlias((v) => !v);
@@ -148,7 +150,6 @@ const BuscadorProductos = forwardRef<HTMLInputElement, Props>(
         }
         resolveChord();
       }
-
       if (e.key === "Enter") {
         setBusqueda(localQ);
         setPaginaActual(1);
@@ -156,115 +157,149 @@ const BuscadorProductos = forwardRef<HTMLInputElement, Props>(
       onSearchEnter(e);
     };
 
+    const handleScannerKey = async (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        beginChord("scanner", () => focusSelect(consultaRef.current));
+        return;
+      }
+      if (chordFrom === "scanner") {
+        const k = e.key.toLowerCase();
+        if (k === "c") {
+          e.preventDefault();
+          resolveChord();
+          focusSelect(consultaRef.current);
+          return;
+        }
+        resolveChord();
+      }
+      if (e.key !== "Enter") return;
 
-
-
- const handleScannerKey = async (e: React.KeyboardEvent<HTMLInputElement>) => {
-  if (e.key === "Tab") {
-    e.preventDefault();
-    beginChord("scanner", () => focusSelect(consultaRef.current)); // Tab simple => a consulta (seleccionado)
-    return;
-  }
-  if (chordFrom === "scanner") {
-    const k = e.key.toLowerCase();
-    if (k === "c") {
+      if (processingRef.current) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      processingRef.current = true;
       e.preventDefault();
-      resolveChord();
-      focusSelect(consultaRef.current);
-      return;
-    }
-    resolveChord();
-  }
+      e.stopPropagation();
 
-  if (e.key !== "Enter") return;
+      const raw0 = e.currentTarget.value || "";
+      const raw = raw0.replace(/[\r\n]+/g, "").trim();
 
-  // Bloqueo de re-entrada + limpieza + stop bubbling
-  if (processingRef.current) { e.preventDefault(); e.stopPropagation(); return; }
-  processingRef.current = true;
-  e.preventDefault();
-  e.stopPropagation();
+      const now = Date.now();
+      if (raw === lastScanRef.current.raw && now - lastScanRef.current.t < 350) {
+        processingRef.current = false;
+        focusSelect(scanRef.current);
+        return;
+      }
+      lastScanRef.current = { raw, t: now };
 
-  // Algunos lectores envían CR/LF -> límpialos
-  const raw0 = (e.currentTarget.value || "");
-  const raw = raw0.replace(/[\r\n]+/g, "").trim();
+      const parsed = parseQtyCode(raw);
+      if (!parsed || typeof onScanEnter !== "function") {
+        processingRef.current = false;
+        focusSelect(scanRef.current);
+        return;
+      }
 
-  // Dedupe local por raw en 350ms
-  const now = Date.now();
-  if (raw === lastScanRef.current.raw && now - lastScanRef.current.t < 350) {
-    processingRef.current = false;
-    focusSelect(scanRef.current);
-    return;
-  }
-  lastScanRef.current = { raw, t: now };
+      await Promise.resolve(onScanEnter({ code: parsed.code, qty: parsed.qty, raw }));
+      focusSelect(scanRef.current);
+      setTimeout(() => (processingRef.current = false), 0);
+    };
 
-  const parsed = parseQtyCode(raw);
-  if (!parsed || typeof onScanEnter !== "function") {
-    processingRef.current = false;
-    focusSelect(scanRef.current);
-    return;
-  }
-
-  // Permite handlers async
-  await Promise.resolve(onScanEnter({ code: parsed.code, qty: parsed.qty, raw }));
-
-  // Mantener foco en escáner y seleccionar TODO para el siguiente código
-  focusSelect(scanRef.current);
-
-  // Libera el candado (siguiente tick)
-  setTimeout(() => { processingRef.current = false; }, 0);
-};
-
+    /* ----------------------- UI --------------------------- */
     return (
-      <div className="flex flex-wrap items-end gap-2 mb-4">
-        {/* Consulta + switch */}
-        <div className="flex-1 min-w-[220px]">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="consulta" className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              Consulta (no agrega)
-            </Label>
-            <div className="flex items-center gap-2">
-              <Label className="text-[11px]">Nombre</Label>
+      <div className="mb-3">
+        {/* Encabezado y switch (compacto) */}
+        <div className="flex items-center justify-between gap-3">
+          <Label
+            htmlFor="consulta"
+            className="text-[10px] uppercase tracking-wide text-muted-foreground"
+          >
+            Buscar (no agrega)
+          </Label>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Buscar por</span>
+            <div className="flex items-center gap-2 rounded-md border px-2 py-1">
+              <span
+                className={`text-xs ${
+                  !buscarPorAlias ? "font-medium" : "text-muted-foreground"
+                }`}
+              >
+                Nombre
+              </span>
               <Switch
                 checked={buscarPorAlias}
-                onCheckedChange={(v) => { setBuscarPorAlias(v); setPaginaActual(1); }}
-                aria-label="Alternar búsqueda por Alias"
+                onCheckedChange={(v) => {
+                  setBuscarPorAlias(v);
+                  setPaginaActual(1);
+                }}
+                aria-label="Alternar búsqueda por alias"
               />
-              <Label className="text-[11px]">Alias</Label>
+              <span
+                className={`text-xs ${
+                  buscarPorAlias ? "font-medium" : "text-muted-foreground"
+                }`}
+              >
+                Alias
+              </span>
             </div>
           </div>
+        </div>
 
-          <Input
-            id="consulta"
-            ref={consultaRef}
-            placeholder="Buscar producto…"
-            className="mt-1"
-            value={localQ}
-            onChange={(e) => setLocalQ(e.target.value)}
-            onKeyDown={handleConsultaKey}
-            onFocus={(e) => e.currentTarget.select()}   // ← al llegar desde escáner queda seleccionado
-          />
-          <div className="mt-1 text-[11px] text-muted-foreground">
-            {`Buscando por: ${buscarPorAlias ? "Alias" : "Nombre"} · Tab alterna · Tab+S → Escáner`}
+        {/* Fila de controles alineados al fondo */}
+        <div className="mt-1 grid grid-cols-1 md:grid-cols-[1fr_minmax(230px,280px)_auto] gap-2 items-end">
+          {/* Consulta */}
+          <div className="flex flex-col gap-1">
+            <Input
+              id="consulta"
+              ref={consultaRef}
+              placeholder={buscarPorAlias ? "Alias… (Enter)" : "Nombre… (Enter)"}
+              className="h-10"
+              value={localQ}
+              onChange={(e) => setLocalQ(e.target.value)}
+              onKeyDown={handleConsultaKey}
+              onFocus={(e) => e.currentTarget.select()}
+              aria-label="Caja de búsqueda (no agrega)"
+            />
+          </div>
+
+          {/* Escáner */}
+          <div className="flex flex-col gap-1">
+            <Label
+              htmlFor="scanner"
+              className="text-[10px] uppercase tracking-wide text-muted-foreground"
+            >
+              Escáner (agrega)
+            </Label>
+            <Input
+              id="scanner"
+              ref={scanRef}
+              placeholder="5*COD · COD*0.5 · COD"
+              className="h-10 text-sm"
+              onKeyDown={handleScannerKey}
+              aria-label="Caja de escaneo (agrega)"
+            />
+          </div>
+
+          {/* Botón foco escáner */}
+          <div className="flex md:justify-end">
+            <Button
+              className="h-10 w-full md:w-auto"
+              variant="outline"
+              onClick={() => focusSelect(scanRef.current)}
+              title="Ir al escáner"
+            >
+              Ir al Escáner
+            </Button>
           </div>
         </div>
 
-        {/* Escáner (agregar) */}
-        <div className="w-[170px]">
-          <Label htmlFor="scanner" className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            Escáner (agregar)
-          </Label>
-          <Input
-            id="scanner"
-            ref={scanRef}
-            placeholder="5*COD | COD*0.5"
-            className="mt-1 h-9 text-sm"
-            onKeyDown={handleScannerKey}
-          />
+        {/* Ayuda corta y no intrusiva */}
+        <div className="mt-1 text-[11px] text-muted-foreground">
+          Atajos: Tab cambia · Ctrl+/ → Escáner
         </div>
-
-        <Button className="h-9" variant="outline" onClick={() => focusSelect(scanRef.current)}>
-          Escáner
-        </Button>
       </div>
     );
   }
