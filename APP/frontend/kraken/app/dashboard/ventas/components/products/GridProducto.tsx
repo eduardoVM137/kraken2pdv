@@ -15,21 +15,20 @@ type Producto = {
 
 interface Props {
   productos: Producto[];
-  onAgregar: (p: Producto) => void;
-
-  // Estado de búsqueda
+  onAgregar: (item: {
+    id: number;
+    nombre: string;
+    precio: number;
+    cantidad: number;
+    presentacion_id?: number;
+    inventarios?: number[];
+  }) => void;
   busqueda: string;
   buscarPorAlias: boolean;
-
-  // Paginación
   paginaActual: number;
   setPaginaActual: (n: number) => void;
   productosPorPagina?: number;
-
-  // UI/estado
   isSearching?: boolean;
-
-  // Orden opcional
   orden?: "nombre" | "precio";
 }
 
@@ -126,11 +125,12 @@ export default function GridProducto({
                   className="h-[300px] w-full max-w-[260px] mx-auto rounded-lg border bg-white shadow-sm animate-pulse"
                 />
               ) : (
-                <ProductoCard
-                  key={String((p as Producto).detalle_producto_id ?? i)}
-                  producto={p as Producto}
-                  onAgregar={() => onAgregar(p as Producto)}
-                />
+                  <ProductoCard
+              key={String((p as Producto).detalle_producto_id ?? i)}
+              producto={p as Producto}
+              onAgregar={onAgregar} // ✅ la card enviará el ítem correcto
+            />
+
               )
           )}
         </div>

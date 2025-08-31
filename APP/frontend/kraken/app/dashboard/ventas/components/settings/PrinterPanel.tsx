@@ -47,8 +47,6 @@ export default function PrinterPanel({
       {/* Header compacto con engrane */}
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-2 text-sm font-medium">
-          <Settings className="w-4 h-4" />
-          <span>Impresión POS</span>
           {!seleccionDisponible && !!nombreImpresora && (
             <Badge variant="destructive" className="ml-2">selección no disponible</Badge>
           )}

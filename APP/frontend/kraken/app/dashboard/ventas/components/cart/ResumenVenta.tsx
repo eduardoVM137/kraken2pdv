@@ -75,7 +75,6 @@ export default function ResumenVenta(props: Props) {
     <div className="flex flex-col h-full">
       {/* Cabecera fija */}
       <div className="p-4 space-y-4 border-b">
-        <h2 className="text-xl font-semibold">Resumen de venta</h2>
         <div className="flex flex-wrap gap-2">
           <Link href="/dashboard/ventas/historico">
             <Button variant="outline">ir a historico</Button>

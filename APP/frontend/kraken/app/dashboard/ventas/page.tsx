@@ -250,49 +250,54 @@ useEffect(() => {
   };
 
   // 🖨️ Cobro + impresión
-  const handleCobrar = async (
-    pagosSeleccionados: { metodo: string; monto: number }[],
-    imprimir = true
-  ) => {
-    setMostrarModal(false);
-    const totalPagado = pagosSeleccionados.reduce((s, p) => s + p.monto, 0);
+ // 🖨️ Cobro + impresión (no borrar la venta al terminar)
+const handleCobrar = async (
+  pagosSeleccionados: { metodo: string; monto: number }[],
+  imprimir = true
+) => {
+  setMostrarModal(false);
+  const totalPagado = pagosSeleccionados.reduce((s, p) => s + p.monto, 0);
 
-    const payload = {
-      usuario_id: 1, cliente_id: 1,
-      forma_pago: pagosSeleccionados.map((p) => p.metodo).join(","),
-      comprobante: `TKT-${Date.now()}`,
-      iva: 16, pagado: totalPagado >= total, estado: "pagado", state_id: 1,
-      descuento,
-      detalle: venta.map((item) => ({
-        detalle_producto_id: item.id,
-        precio_venta: item.precio,
-        cantidad: item.cantidad,
-        descuento: item.descuento ?? 0,
-        empleado_id: 1,
-        inventario_id: item.inventarios?.[0],
-      })),
-    };
-
-    try {
-      const nuevaVenta = await crearVenta(payload);
-      localStorage.removeItem("ventaDraft");
-
-      if (imprimir) {
-        const lineas = generarLineasPOS(
-          venta, pagosSeleccionados, total, totalPagado, false, nuevaVenta.id, cliente, vendedor
-        );
-        const opciones: OpcionesImpresion = { nombreImpresora, tamanoPapel } as any;
-        try { await imprimirLoteTexto(lineas, opciones); }
-        catch (err: any) { console.error(err); alert("❌ No se pudo imprimir: " + err.message); }
-      }
-
-      setVenta([]); setPagos([]); setDescuento(0);
-      alert(`✅ Venta #${nuevaVenta.id} registrada${imprimir ? " e impresa" : ""}!`);
-    } catch (err: any) {
-      console.error(err);
-      alert("❌ No se pudo registrar la venta:\n" + err.message);
-    }
+  const payload = {
+    usuario_id: 1, cliente_id: 1,
+    forma_pago: pagosSeleccionados.map((p) => p.metodo).join(","),
+    comprobante: `TKT-${Date.now()}`,
+    iva: 16, pagado: totalPagado >= total, estado: "pagado", state_id: 1,
+    descuento,
+    detalle: venta.map((item) => ({
+      detalle_producto_id: item.id,
+      precio_venta: item.precio,
+      cantidad: item.cantidad,
+      descuento: item.descuento ?? 0,
+      empleado_id: 1,
+      inventario_id: item.inventarios?.[0],
+    })),
   };
+
+  try {
+    const nuevaVenta = await crearVenta(payload);
+
+    // ⚠️ Antes: localStorage.removeItem("ventaDraft");
+    // Si quieres mantener la venta visible y también restaurable tras recargar, no borres el draft.
+
+    if (imprimir) {
+      const lineas = generarLineasPOS(
+        venta, pagosSeleccionados, total, totalPagado, false, nuevaVenta.id, cliente, vendedor
+      );
+      const opciones: OpcionesImpresion = { nombreImpresora, tamanoPapel } as any;
+      try { await imprimirLoteTexto(lineas, opciones); }
+      catch (err: any) { console.error(err); alert("❌ No se pudo imprimir: " + err.message); }
+    }
+ 
+
+    alert(`✅ Venta #${nuevaVenta.id} registrada${imprimir ? " e impresa" : ""}! (La venta se mantiene en pantalla)`);
+  } catch (err: any) {
+    console.error(err);
+    alert("❌ No se pudo registrar la venta:\n" + err.message);
+  }
+};
+
+
 
   // 🧾 Cotización (sin pagos)
   const handleImprimirCotizacion = async () => {
