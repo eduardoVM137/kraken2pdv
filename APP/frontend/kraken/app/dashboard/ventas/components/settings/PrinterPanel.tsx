@@ -6,45 +6,44 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { useEffect, useState } from "react";
 
 type Props = {
-  // listas
-  visibles: string[];           // QZ + defaults Windows
-  verificadas: string[];        // QZ only
-  noVerificadas: string[];      // defaults Windows que QZ no reporta
-  // selección
+  visibles: string[];
+  verificadas: string[];
+  noVerificadas: string[];
   nombreImpresora: string;      // "" = default Windows
   setNombreImpresora: (v: string) => void;
   tamanoPapel: "58mm" | "80mm";
   setTamanoPapel: (v: "58mm" | "80mm") => void;
-  // estado
   cargando?: boolean;
   pos58Disponible?: boolean;
   seleccionDisponible?: boolean;
   panelColapsado: boolean;
   setPanelColapsado: (b: boolean) => void;
-  // acciones
   refreshPrinters: () => void;
 };
 
-export default function PrinterPanel({
-  visibles,
-  verificadas,
-  noVerificadas,
-  nombreImpresora,
-  setNombreImpresora,
-  tamanoPapel,
-  setTamanoPapel,
-  cargando,
-  pos58Disponible = false,
-  seleccionDisponible = true,
-  panelColapsado,
-  setPanelColapsado,
-  refreshPrinters,
-}: Props) {
+export default function PrinterPanel(props: Props) {
+  const {
+    visibles, verificadas, noVerificadas,
+    nombreImpresora, setNombreImpresora,
+    tamanoPapel, setTamanoPapel,
+    cargando, pos58Disponible = false,
+    seleccionDisponible = true,
+    panelColapsado, setPanelColapsado,
+    refreshPrinters,
+  } = props;
+
+  // Evita mismatch SSR/CSR
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const btnTitle = mounted ? (panelColapsado ? "Mostrar opciones" : "Ocultar opciones") : undefined;
+
   return (
     <div className="border-b">
-      {/* Header compacto con engrane */}
+      {/* Header */}
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-2 text-sm font-medium">
           {!seleccionDisponible && !!nombreImpresora && (
@@ -55,14 +54,14 @@ export default function PrinterPanel({
           variant="ghost"
           size="sm"
           onClick={() => setPanelColapsado(!panelColapsado)}
-          title={panelColapsado ? "Mostrar opciones" : "Ocultar opciones"}
+          title={btnTitle}
         >
           <Settings className="w-4 h-4" />
         </Button>
       </div>
 
-      {/* Cuerpo (colapsable) */}
-      {!panelColapsado && (
+      {/* Cuerpo: solo renderiza después de montar */}
+      {mounted && !panelColapsado && (
         <div className="p-3 pt-0 space-y-3">
           <div className="flex items-center gap-2">
             <Label className="w-28">Impresora:</Label>
@@ -99,7 +98,7 @@ export default function PrinterPanel({
             </Select>
           </div>
 
-          {/* Estado de preferidas */}
+          {/* Estado */}
           <div className="flex items-center gap-4 text-sm">
             <div className="flex items-center gap-1">
               {pos58Disponible ? (
@@ -130,10 +129,12 @@ export default function PrinterPanel({
             )}
           </div>
 
-          {/* Lista visible de impresoras detectadas */}
+          {/* Listas */}
           <div className="text-xs text-muted-foreground">
             Detectadas por QZ ({verificadas.length}):{" "}
-            {verificadas.length ? verificadas.map((n) => <Badge key={n} className="mr-1 mb-1">{n}</Badge>) : "— ninguna —"}
+            {verificadas.length
+              ? verificadas.map((n) => <Badge key={n} className="mr-1 mb-1">{n}</Badge>)
+              : "— ninguna —"}
           </div>
           {noVerificadas.length > 0 && (
             <div className="text-xs text-muted-foreground">

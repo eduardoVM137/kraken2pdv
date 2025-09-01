@@ -10,6 +10,7 @@ import BuscadorProductos from "./components/search/BuscadorProductos";
 import ResumenVenta from "./components/cart/ResumenVenta";
 
 import { getProductos, buscarProductosPorAlias, crearVenta } from "@/lib/fetchers/ventas";
+import { exportTicketPDF,compactPOSLines } from "@/app/utils/print-ticket-pdf";
 
 // ⬇️ Utils de impresión (si los moviste a lib/printing, cambia las rutas)
 import {
@@ -28,6 +29,9 @@ import { useCart } from "./hooks/useCart";
 import { usePendingSales } from "./hooks/usePendingSales";
 import { usePrinters } from "./hooks/usePrinters";
 import PrinterPanel from "./components/settings/PrinterPanel";
+ 
+const isVirtualPdfPrinter = (name?: string) =>
+  !!(name && /pdf|xps|onenote|microsoft print to pdf|edge/i.test(name));
 
 export default function VentasPage() {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -248,21 +252,26 @@ useEffect(() => {
     if (!confirm("¿Eliminar esta venta pendiente?")) return;
     eliminar(id);
   };
-
-  // 🖨️ Cobro + impresión
+ 
  // 🖨️ Cobro + impresión (no borrar la venta al terminar)
+
 const handleCobrar = async (
   pagosSeleccionados: { metodo: string; monto: number }[],
   imprimir = true
 ) => {
   setMostrarModal(false);
+
   const totalPagado = pagosSeleccionados.reduce((s, p) => s + p.monto, 0);
 
   const payload = {
-    usuario_id: 1, cliente_id: 1,
+    usuario_id: 1,
+    cliente_id: 1,
     forma_pago: pagosSeleccionados.map((p) => p.metodo).join(","),
     comprobante: `TKT-${Date.now()}`,
-    iva: 16, pagado: totalPagado >= total, estado: "pagado", state_id: 1,
+    iva: 16,
+    pagado: totalPagado >= total,
+    estado: "pagado",
+    state_id: 1,
     descuento,
     detalle: venta.map((item) => ({
       detalle_producto_id: item.id,
@@ -277,35 +286,96 @@ const handleCobrar = async (
   try {
     const nuevaVenta = await crearVenta(payload);
 
-    // ⚠️ Antes: localStorage.removeItem("ventaDraft");
-    // Si quieres mantener la venta visible y también restaurable tras recargar, no borres el draft.
+    // Genera líneas POS una sola vez (se usan para imprimir o para PDF)
+    const lineas = generarLineasPOS(
+      venta,
+      pagosSeleccionados,
+      total,
+      totalPagado,
+      false,               // isCotizacion = false
+      nuevaVenta.id,
+      cliente,
+      vendedor
+    );
+
+    const widthMm = tamanoPapel === "80mm" ? 80 : 58;
 
     if (imprimir) {
-      const lineas = generarLineasPOS(
-        venta, pagosSeleccionados, total, totalPagado, false, nuevaVenta.id, cliente, vendedor
-      );
-      const opciones: OpcionesImpresion = { nombreImpresora, tamanoPapel } as any;
-      try { await imprimirLoteTexto(lineas, opciones); }
-      catch (err: any) { console.error(err); alert("❌ No se pudo imprimir: " + err.message); }
+      // Si la "impresora" es virtual (PDF/XPS/OneNote/Edge), NO envíes RAW via QZ -> genera PDF válido.
+      if (isVirtualPdfPrinter(nombreImpresora)) {
+        exportTicketPDF(compactPOSLines(lineas), {
+          widthMm,
+          fileName: `TKT-${nuevaVenta.id}.pdf`,
+          openInsteadOfDownload: true,
+        });
+        alert("Impresora virtual detectada. Generé un PDF de ticket para imprimir desde el visor.");
+      } else {
+        // Impresión RAW con QZ; si falla, fallback a PDF
+        const opciones: OpcionesImpresion = { nombreImpresora, tamanoPapel } as any;
+        try {
+          await imprimirLoteTexto(lineas, opciones);
+        } catch (err) {
+          console.error("QZ falló, generando PDF de respaldo:", err);
+          exportTicketPDF(compactPOSLines(lineas), {
+            widthMm,
+            fileName: `TKT-${nuevaVenta.id}.pdf`,
+            openInsteadOfDownload: true,
+          });
+          alert("No se pudo imprimir por QZ. Generé un PDF de ticket de respaldo.");
+        }
+      }
+    } else {
+      // Usuario eligió NO imprimir -> solo PDF
+      exportTicketPDF(compactPOSLines(lineas), {
+        widthMm,
+        fileName: `TKT-${nuevaVenta.id}.pdf`,
+        openInsteadOfDownload: true,
+      });
     }
- 
 
     alert(`✅ Venta #${nuevaVenta.id} registrada${imprimir ? " e impresa" : ""}! (La venta se mantiene en pantalla)`);
   } catch (err: any) {
     console.error(err);
-    alert("❌ No se pudo registrar la venta:\n" + err.message);
+    alert("❌ No se pudo registrar la venta:\n" + (err?.message ?? err));
   }
 };
 
 
 
-  // 🧾 Cotización (sin pagos)
-  const handleImprimirCotizacion = async () => {
-    if (venta.length === 0) return;
-    const totalCotizado = venta.reduce((s, i) => s + i.precio * i.cantidad, 0);
-    const lineas = generarLineasPOS(venta, [], totalCotizado, 0, true);
-    await imprimirLoteTexto(lineas, { nombreImpresora, tamanoPapel } as any);
-  };
+ 
+// 🧾 Cotización (sin pagos) con fallback a PDF térmico
+const handleImprimirCotizacion = async () => {
+  if (venta.length === 0) return;
+
+  const totalCotizado = venta.reduce((s, i) => s + i.precio * i.cantidad, 0);
+  const lineas = generarLineasPOS(venta, [], totalCotizado, 0, true);
+
+  try {
+    await imprimirLoteTexto(lineas, { nombreImpresora, tamanoPapel } as OpcionesImpresion);
+  } catch (err: any) {
+    console.error(err);
+     exportTicketPDF(compactPOSLines(lineas), {
+      widthMm: tamanoPapel === "80mm" ? 80 : 58,
+      fileName: `COT-${Date.now()}.pdf`,
+      openInsteadOfDownload: true,
+    });
+    alert("No se pudo imprimir por QZ. Generé un PDF de ticket (cotización) para impresora térmica.");
+  }
+};
+
+// 🧾 Guardar PDF (térmico) directo — sin intentar QZ
+const handleGuardarPDFCotizacion = async () => {
+  if (venta.length === 0) return;
+
+  const totalCotizado = venta.reduce((s, i) => s + i.precio * i.cantidad, 0);
+  const lineas = generarLineasPOS(venta, [], totalCotizado, 0, true);
+
+exportTicketPDF(compactPOSLines(lineas),{
+    widthMm: tamanoPapel === "80mm" ? 80 : 58,
+    fileName: `COT-${Date.now()}.pdf`,
+    openInsteadOfDownload: true,
+  });
+};
 
   return (
     <>
@@ -384,6 +454,7 @@ const handleCobrar = async (
                 pagos={pagos} setPagos={setPagos}
                 handleCobrar={handleCobrar}
                 handleImprimirCotizacion={handleImprimirCotizacion}
+                handleGuardarPDFCotizacion={handleGuardarPDFCotizacion}   
               />
             </div>
             
@@ -419,6 +490,8 @@ const handleCobrar = async (
                 pagos={pagos} setPagos={setPagos}
                 handleCobrar={handleCobrar}
                 handleImprimirCotizacion={handleImprimirCotizacion}
+                  handleGuardarPDFCotizacion={handleGuardarPDFCotizacion}   // <-- NUEVO
+
               />
             </div>
           </SheetContent>
