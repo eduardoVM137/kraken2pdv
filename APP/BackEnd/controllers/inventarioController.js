@@ -2,13 +2,23 @@ import {
   mostrarInventariosService,
   insertarInventarioService,
   editarInventarioService,
-  eliminarInventarioService,
+  eliminarInventarioService,buscarInventarioService
 } from "../services/inventarioService.js";
 
 export const mostrarInventariosController = async (req, res, next) => {
   try {
     const data = await mostrarInventariosService();
     res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const buscarInventarioController = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const data = await buscarInventarioService(id);
+   res.status(200).json({ data });
   } catch (error) {
     next(error);
   }
@@ -41,4 +51,19 @@ export const eliminarInventarioController = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+export const buscarInventarioPorDetalleProductoService = async (detalle_producto_id) => {
+  return await db
+    .select({
+      inventario_id: Inventario.id,
+      detalle_producto_id: Inventario.detalle_producto_id,
+      stock_actual: Inventario.cantidad,
+      precio_costo: Inventario.costo,
+      ubicacion_id: Inventario.ubicacion_id,
+      ubicacion_nombre: Ubicacion.nombre,
+    })
+    .from(Inventario)
+    .leftJoin(Ubicacion, eq(Inventario.ubicacion_id, Ubicacion.id))
+    .where(eq(Inventario.detalle_producto_id, detalle_producto_id));
 };

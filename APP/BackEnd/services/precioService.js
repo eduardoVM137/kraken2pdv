@@ -1,7 +1,7 @@
 import { db } from "../config/database.js";
 import { Precio } from "../models/precio.js";
 import { eq } from "drizzle-orm";
-
+import { inArray } from 'drizzle-orm';
 export const mostrarPreciosService = async () => {
   return await db.select().from(Precio);
 };
@@ -33,3 +33,10 @@ export const buscarPreciosPorDetalleProductoService = async (detalle_producto_id
     .from(Precio)
     .where(eq(Precio.detalle_producto_id, detalle_producto_id));
 };
+
+export const buscarPreciosPorIdService = async (ids = []) => {
+  if (!Array.isArray(ids) || ids.length === 0) return [];
+  return await db.select().from(Precio).where(inArray(Precio.id, ids));
+};
+
+ 

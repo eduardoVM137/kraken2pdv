@@ -37,10 +37,16 @@ import pago_empresaRoutes from './Routes/pago_empresaRoutes.js';
 import modulo_empresaRoutes from './Routes/modulo_empresaRoutes.js';
 import configuracion_extra_jsonRoutes from './Routes/configuracion_extra_jsonRoutes.js';
 import contenedor_figuraRoutes from './Routes/contenedor_figuraRoutes.js';
+import usuarioRoutes from './Routes/usuarioRoutes.js';
 import errorHandler from './middlewares/errorHandler.js';
+ 
+import cors from 'cors';
 
 const app = express();
 app.use(express.json());
+app.use(cors());
+
+
 
 // Rutas
 app.use('/api/producto', productoRoutes);
@@ -64,7 +70,7 @@ app.use('/api/presentacion', presentacionRoutes);
 app.use('/api/atributo', atributoRoutes);
 app.use('/api/etiqueta-producto', etiqueta_productoRoutes);
 app.use('/api/precio', precioRoutes);
-app.use('/api/ubicacion', ubicacionRoutes);
+app.use('/api/ubicacion-fisica', ubicacionRoutes);
 app.use('/api/contenedor-fisico', contenedor_fisicoRoutes);
 app.use('/api/contenedor-instancia', contenedor_instanciaRoutes);
 app.use('/api/detalle-producto-celda', detalle_producto_celdaRoutes);
@@ -83,6 +89,7 @@ app.use('/api/pago-empresa', pago_empresaRoutes);
 app.use('/api/modulo-empresa', modulo_empresaRoutes);
 app.use('/api/configuracion-extra-json', configuracion_extra_jsonRoutes);
 app.use('/api/contenedor-figura', contenedor_figuraRoutes);
+app.use('/api/usuario', usuarioRoutes);
 
 // Middleware de manejo de errores
 app.use(errorHandler);

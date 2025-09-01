@@ -1,0 +1,149 @@
+CREATE TABLE `categoria`(
+	idcategoria int primary key AUTO_INCREMENT NOT NULL,
+	idstate int NULL,
+	nombre varchar(100) NOT NULL,
+	descripcion varchar(200) NULL);
+    
+CREATE TABLE `cliente`(
+	idcliente int primary key AUTO_INCREMENT NOT NULL,
+	idstate int NULL,
+	codigo_cliente varchar (50) NULL,
+	nombre varchar (150) NULL,
+	apellidos varchar(200) NULL,
+	direccion varchar(150) NULL,
+	telefono varchar(50) NULL,
+	correo varchar(150) NULL,
+	fecha_nacimiento date NULL,
+   comentarios varchar(250) NULL,
+    foto Blob NULL
+)
+;
+CREATE TABLE componente(
+    idcomponente int primary key AUTO_INCREMENT NOT NULL,
+    idproducto int NOT NULL,
+    idproducto_item int NOT NULL,
+    cantidad decimal(18, 2) NOT NULL)
+;
+
+CREATE TABLE corte_caja(
+    idcorte_caja int primary key AUTO_INCREMENT NOT NULL,
+    idempleado_usuario int NOT NULL,
+    fecha_hora_inicio datetime NOT NULL,
+    fecha_hora_fin datetime NOT NULL,
+    fondo_inicial decimal(18, 2) NOT NULL,
+    total_retiros decimal(18, 2) NOT NULL,
+    total_ventas decimal(18, 2) NOT NULL,
+    total_entregado decimal(18, 2) NOT NULL)
+;
+CREATE TABLE detalle_ingreso(
+    iddetalle_ingreso int primary key AUTO_INCREMENT NOT NULL,
+    idingreso int NOT NULL,
+    idproducto int NOT NULL,
+    idstate int NULL,
+    cantidad int NOT NULL,
+    precio_costo decimal(18, 2) NOT NULL) 
+;
+CREATE TABLE detalle_state(
+    idetalle_state int primary key AUTO_INCREMENT NOT NULL,
+    idstate int NOT NULL,
+    idempleado_usuario int NOT NULL,
+    fecha datetime NOT NULL,
+    estado varchar(100) NOT NULL)
+;
+CREATE TABLE detalle_venta(
+    iddetalle_venta int primary key AUTO_INCREMENT NOT NULL,
+    idventa int NULL,
+    idempleado int NULL,
+    idproducto int NULL,
+    cantidad decimal(18, 2) NULL,
+    precio decimal(18, 2) NULL,
+    descuento decimal(18, 2) NULL,
+    subtotal decimal(18, 2) NULL)
+;
+CREATE TABLE empleado(
+    idempleado int primary key AUTO_INCREMENT NOT NULL,
+    codigo_empleado varchar(50) NOT NULL,
+    nombre varchar(150) NOT NULL,
+    apellidos varchar(200) NULL,
+    foto Blob NULL,
+    direccion varchar(50) NULL,
+    telefono varchar(50) NULL,
+    correo varchar(150) NULL,
+    fecha_nacimiento date NULL,
+    comentarios varchar(250) NULL,
+    idstate int NULL) 
+;
+
+CREATE TABLE ingreso(
+    idingreso int primary key AUTO_INCREMENT NOT NULL,
+    idempleado int NOT NULL,
+    idproveedor int NOT NULL,
+    idstate int NULL,
+    fecha datetime NOT NULL,
+    metodo_pago varchar(50) NULL,
+    comprobante varchar(150) NULL,
+    iva decimal(18, 2) NULL,
+    total decimal(18, 2) NOT NULL,
+    pagado varchar(50) NULL);
+CREATE TABLE inventario(
+    idinventario int primary key AUTO_INCREMENT NOT NULL,
+    idproducto int NOT NULL,
+    stock_actual decimal(18, 2) NULL,
+    stock_minimo decimal(18, 2) NULL)
+;
+CREATE TABLE productos(
+    idproducto int primary key AUTO_INCREMENT NOT NULL,
+    idcategoria int NOT NULL,
+    nombre varchar(50) NOT NULL,
+    precio_costo decimal(18, 2) NULL,
+    precio_venta decimal(18, 2) NOT NULL,
+    tipo varchar(50) NULL,
+    idstate int NULL,
+    presentacion varchar(50) NULL,
+    ubicacion varchar(50) NULL,
+    foto varchar(50) NULL,
+    codigo_barras varchar(50) NULL,
+    codigo_propio varchar(50) NULL)
+;
+
+CREATE TABLE proveedor(
+    idproveedor int primary key AUTO_INCREMENT NOT NULL,
+    idstate int NULL,
+    codigo_proveedor varchar(100) NULL,
+    nombre varchar(250) NOT NULL,
+    rfc varchar(50) NULL,
+    direccion varchar(50) NULL,
+    telefono varchar(20) NULL,
+    correo varchar(150) NULL,
+    comentarios varchar(250) NULL,
+    foto Blob NULL) 
+;
+CREATE TABLE retiro(
+    idretiro int primary key AUTO_INCREMENT NOT NULL,
+    idempleado_usuario int NOT NULL,
+    idcorte_caja int NOT NULL,
+    fecha_hora datetime NOT NULL,
+    monto decimal(18, 2) NOT NULL,
+    motivo varchar(250) NULL)
+;
+CREATE TABLE state(
+    idstate int);
+
+CREATE TABLE sub_categoria(
+    idsub_categoria int primary key AUTO_INCREMENT NOT NULL,
+    idcategoria int NOT NULL,
+    nombre varchar(100) NOT NULL,
+    descripcion varchar(200) NULL);
+    
+CREATE TABLE venta(
+    idventa int primary key AUTO_INCREMENT NOT NULL,
+    idempleado_usuario int NULL,
+    idcliente int NULL,
+    idstate int NULL,
+    fecha datetime NULL,
+    metodo_pago varchar(50) NULL,
+    comprobante varchar(50) NULL,
+    iva decimal(18, 2) NULL,
+    total decimal(18, 2) NULL,
+    pagado varchar(50) NULL,
+    comentarios varchar(150) NULL);

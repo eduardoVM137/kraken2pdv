@@ -1,17 +1,21 @@
+// validators/validarProveedor.js
 import Joi from 'joi';
 
 const proveedorSchema = Joi.object({
-  // TODO: define aquí los campos según el modelo
+  nombre: Joi.string().max(150).required().messages({
+    "string.base": "El nombre debe ser texto",
+    "any.required": "El nombre es obligatorio",
+  }),
+  contacto: Joi.string().max(100).allow(null, ""),
+  telefono: Joi.string().max(20).allow(null, ""),
+  direccion: Joi.string().allow(null, ""),
+  state_id: Joi.number().integer().allow(null),
+  codigo_proveedor: Joi.string().max(100).allow(null, ""),
+  rfc: Joi.string().max(50).allow(null, ""),
+  foto: Joi.string().max(255).allow(null, ""),
+  estado: Joi.boolean().allow(null),
 });
+ 
+ 
 
-const validarProveedor = (req, res, next) => {
-  const { error } = proveedorSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    const errores = error.details.map(e => e.message);
-    return res.status(400).json({ errores });
-  }
-  next();
-};
-
-export default validarProveedor;
 export { proveedorSchema };

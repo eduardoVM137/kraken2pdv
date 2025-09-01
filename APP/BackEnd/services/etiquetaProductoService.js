@@ -1,7 +1,6 @@
 import { db } from "../config/database.js";
 import { EtiquetaProducto } from "../models/etiqueta_producto.js";
 import { eq } from "drizzle-orm";
-
 export const mostrarEtiquetasService = async () => {
   return await db.select().from(EtiquetaProducto);
 };
@@ -29,14 +28,14 @@ export const eliminarEtiquetaService = async (id) => {
  * @param {Array} aliasList - Lista de alias con { detalle_producto_id, codigo }.
  * @returns {Array} Alias insertados.
  */
-export const insertarAliasProductoTx = async (tx, aliasList) => {
-  if (!Array.isArray(aliasList) || aliasList.length === 0) {
-    throw new Error('La lista de alias está vacía o no es válida');
-  }
+// export const insertarAliasProductoTx = async (tx, aliasList) => {
+//   if (!Array.isArray(aliasList) || aliasList.length === 0) {
+//     throw new Error('La lista de alias está vacía o no es válida');
+//   }
 
-  const inserted = await tx.insert(EtiquetaProducto).values(aliasList).returning();
-  return inserted;
-};
+//   const inserted = await tx.insert(EtiquetaProducto).values(aliasList).returning();
+//   return inserted;
+// };
 
 
 
@@ -46,4 +45,24 @@ export const buscarAliasPorDetalleProductoService = async (detalle_producto_id) 
     .select()
     .from(EtiquetaProducto)
     .where(eq(EtiquetaProducto.detalle_producto_id, detalle_producto_id));
+};
+export const eliminarAliasProductoTx = async (tx, detalle_producto_id) => {
+  await tx.delete(schema.EtiquetaProducto)
+    .where(eq(schema.EtiquetaProducto.detalle_producto_id, detalle_producto_id));
+};
+
+ 
+export const insertarAliasProductoTx = async (tx, data) => {
+  const [nueva] = await tx.insert(EtiquetaProducto).values(data).returning();
+  return nueva;
+};
+
+
+export const buscarAliasPorCodigoService = async (codigo) => {
+  const resultado = await db
+    .select()
+    .from(EtiquetaProducto)
+    .where(eq(EtiquetaProducto.alias, codigo));
+
+  return resultado[0] || null;
 };

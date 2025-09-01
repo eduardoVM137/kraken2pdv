@@ -4,7 +4,7 @@ import {
   editarDetalleProductoController,
   eliminarDetalleProductoController,
   mostrarDetalleProductosController,
-  buscarDetalleProductoIdController,buscarDetalleProductoCompletoController,
+  buscarDetalleProductoIdController,obtenerDetalleProducto,buscarProductoGeneralController,detalleProductoExpandidoController
 } from "../controllers/detalle_ProductoController.js";
 import validateRequest from "../middlewares/validateRequest.js";
 import { detalleProductoSchema } from "../middlewares/validarDetalleProducto.js";
@@ -24,15 +24,19 @@ router.post(
 router.get("/", mostrarDetalleProductosController);
 
 // Leer uno
-router.get("/:id", buscarDetalleProductoCompletoController);
+// Buscar producto general por código de presentación (ligera)
+router.get("/buscar-general/:codigo", buscarProductoGeneralController);
+
+// Buscar detalle expandido por ID (precios + inventarios)
+router.get("/detalle-expandido/:id", detalleProductoExpandidoController);
+
+// Buscar un detalle exacto del producto (ej. para editarlo)
+router.get("/:id", obtenerDetalleProducto);
+
 
 // Actualizar
-router.put(
-  "/:id",
-  authMiddleware,
-  validateRequest(detalleProductoSchema),
-  editarDetalleProductoController
-);
+router.put("/editar/:id", editarDetalleProductoController); // ✅ requerido para formulario
+
 
 // Eliminar
 router.delete("/:id", authMiddleware, eliminarDetalleProductoController);

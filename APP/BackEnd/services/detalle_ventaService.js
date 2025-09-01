@@ -6,6 +6,14 @@ export const mostrarDetalleVentasService = async () => {
   return await db.select().from(DetalleVenta);
 };
 
+export const buscarDetalleVentaService = async (id) => {
+  return await db
+    .select()
+    .from(DetalleVenta)
+    .where(eq(DetalleVenta.id, id))
+    .then(res => res[0]);
+};
+
 export const insertarDetalleVentaService = async (data) => {
   const [nuevo] = await db.insert(DetalleVenta).values(data).returning();
   return !!nuevo;

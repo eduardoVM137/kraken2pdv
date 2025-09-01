@@ -14,6 +14,8 @@ export const mostrarContenedorFisicosController = async (req, res, next) => {
   }
 };
 
+
+
 export const insertarContenedorFisicoController = async (req, res, next) => {
   try {
     const exito = await insertarContenedorFisicoService(req.body);

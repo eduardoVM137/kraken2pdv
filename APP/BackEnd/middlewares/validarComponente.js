@@ -1,17 +1,13 @@
-import Joi from 'joi';
+ import Joi from 'joi';
 
-const componenteSchema = Joi.object({
-  // TODO: define aquí los campos según el modelo
+export const componenteSchema = Joi.object({
+  detalle_producto_padre_id: Joi.number().integer().required().messages({
+    'number.base': 'El ID del producto padre debe ser un número',
+    'any.required': 'El producto padre es obligatorio',
+  }),
+  cantidad: Joi.number().positive().required().messages({
+    'number.base': 'La cantidad debe ser un número',
+    'number.positive': 'La cantidad debe ser mayor a 0',
+    'any.required': 'La cantidad es obligatoria',
+  }),
 });
-
-const validarComponente = (req, res, next) => {
-  const { error } = componenteSchema.validate(req.body, { abortEarly: false });
-  if (error) {
-    const errores = error.details.map(e => e.message);
-    return res.status(400).json({ errores });
-  }
-  next();
-};
-
-export default validarComponente;
-export { componenteSchema };

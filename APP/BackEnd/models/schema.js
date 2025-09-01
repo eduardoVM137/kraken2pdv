@@ -11,6 +11,9 @@ export * from './contenedor_figura.js';
 export * from './contenedor_fisico.js';
 export * from './contenedor_instancia.js';
 //export * from './corteCaja.js';
+
+export * from './detalle_atributo.js';
+export * from './producto_multimedia.js';
 export * from './detalle_ingreso.js';
 export * from './detalle_producto.js';
 export * from './detalle_producto_celda.js';
@@ -21,7 +24,7 @@ export * from './empresa.js';
 export * from './etiqueta_producto.js';
 export * from './ingreso.js';
 export * from './inventario.js';
-export * from './licencia_empresa.js';
+export * from './licencia_empresa.js'; 
 //export * from './log_acceso.js';
 export * from './modulo_empresa.js';
 export * from './presentacion.js';
@@ -36,8 +39,8 @@ export * from './state.js';
 export * from './subCategoria.js';
 export * from './tipo_contenedor.js';
 export * from './ubicacion_fisica.js';
-// export * from './usuario.js';  si
+ export * from './usuario.js';  
 //export * from './usuarioRol.js';
 export * from './venta.js';
 //export * from './acceso.js'; si
-//export * from './restriccionUsuario.js';
+//export * from './restriccionUsuario.js';  

@@ -6,6 +6,7 @@ export const mostrarContenedorFisicosService = async () => {
   return await db.select().from(ContenedorFisico);
 };
 
+
 export const insertarContenedorFisicoService = async (data) => {
   const [nuevo] = await db.insert(ContenedorFisico).values(data).returning();
   return !!nuevo;

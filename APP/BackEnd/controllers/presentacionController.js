@@ -2,7 +2,8 @@ import {
   mostrarPresentacionesService,
   insertarPresentacionService,
   editarPresentacionService,
-  eliminarPresentacionService
+  eliminarPresentacionService,
+  buscarPresentacionPorIdService,buscarPresentacionesPorDetalleProductoService
 } from "../services/presentacionService.js";
 
 export const mostrarPresentacionesController = async (req, res, next) => {
@@ -39,6 +40,39 @@ export const eliminarPresentacionController = async (req, res, next) => {
     const exito = await eliminarPresentacionService(id);
     res.status(exito ? 200 : 404).json({ message: exito ? "Eliminado" : "No encontrado" });
   } catch (error) {
+    next(error);
+  }
+};
+
+ 
+// Buscar por ID
+export const buscarPresentacionPorIdContoller = async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (isNaN(id)) return res.status(400).json({ message: "ID inválido" });
+
+    const data = await buscarPresentacionPorIdService(id);
+    if (!data) return res.status(404).json({ message: "Detalle producto no encontrado" });
+
+    res.status(200).json({ data });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Obtener todas las presentaciones por detalle_producto_id
+ 
+export const buscarPresentacionesPorDetalleProductoController = async (req, res, next) => {
+  try {
+    const detalle_producto_id = Number(req.params.detalle_producto_id);
+    if (isNaN(detalle_producto_id)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    const data = await buscarPresentacionesPorDetalleProductoService(detalle_producto_id);
+    return res.status(200).json({ data });
+  } catch (error) {
+    console.error("Error al buscar presentaciones por detalle_producto_id:", error);
     next(error);
   }
 };

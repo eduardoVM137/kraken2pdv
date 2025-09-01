@@ -1,9 +1,25 @@
-// models/componente.js
-import { mysqlTable, serial, int, decimal } from 'drizzle-orm/mysql-core';
 
-export const Componente = mysqlTable('componente', {
-  idcomponente: serial('idcomponente').primaryKey(),
-  idproducto: int('idproducto').notNull(),
-  idproducto_item: int('idproducto_item').notNull(),
-  cantidad: decimal('cantidad', { precision: 18, scale: 2 }).notNull(),
+// ✅ 10. models/componente.js
+import { pgTable, serial, integer, numeric } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
+import { DetalleProducto } from "./detalle_producto.js";
+
+export const Componente = pgTable("componente", {
+  id: serial("id").primaryKey(),
+  detalle_producto_padre_id: integer("detalle_producto_padre_id").notNull(),
+  detalle_producto_hijo_id: integer("detalle_producto_hijo_id").notNull(),
+  cantidad: numeric("cantidad", { precision: 10, scale: 2 }),
 });
+
+export const ComponenteRelations = relations(Componente, ({ one }) => ({
+  padre: one(DetalleProducto, {
+    fields: [Componente.detalle_producto_padre_id],
+    references: [DetalleProducto.id],
+    relationName: "componente_padre",
+  }),
+  hijo: one(DetalleProducto, {
+    fields: [Componente.detalle_producto_hijo_id],
+    references: [DetalleProducto.id],
+    relationName: "componente_hijo",
+  }),
+}));

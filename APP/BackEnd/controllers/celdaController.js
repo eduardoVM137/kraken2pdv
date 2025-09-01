@@ -2,7 +2,7 @@ import {
   mostrarCeldasService,
   insertarCeldaService,
   editarCeldaService,
-  eliminarCeldaService,
+  eliminarCeldaService,getUbicacionFisicaDetallada ,
 } from "../services/celdaService.js";
 
 export const mostrarCeldasController = async (req, res, next) => {
@@ -42,3 +42,21 @@ export const eliminarCeldaController = async (req, res, next) => {
     next(error);
   }
 };
+export async function getUbicacionFisicaCompleta(req, res) {
+  try {
+    const detalleProductoId = parseInt(req.params.id);
+    if (isNaN(detalleProductoId)) {
+      return res.status(400).json({ message: "ID inválido" });
+    }
+
+    const ubicaciones = await getUbicacionFisicaDetallada(detalleProductoId);
+
+    res.status(200).json({
+      message: "Ubicaciones físicas detalladas obtenidas correctamente",
+      data: ubicaciones
+    });
+  } catch (error) {
+    console.error("Error en getUbicacionFisicaCompleta:", error);
+    res.status(500).json({ message: "Error interno del servidor" });
+  }
+}

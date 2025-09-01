@@ -1,0 +1,161 @@
+BEGIN;
+DELETE FROM detalle_ingreso;
+DELETE FROM detalle_venta;
+
+DELETE FROM producto_multimedia;
+
+DELETE FROM producto_ubicacion;
+
+-- 🔹 Eliminar alias/códigos de barra
+DELETE FROM precio;
+-- 🔹 Eliminar alias/códigos de barra
+DELETE FROM etiqueta_producto;
+-- 🔹 Eliminar componentes que referencian productos
+DELETE FROM presentacion;
+-- 🔹 Eliminar componentes que referencian productos
+DELETE FROM componente;
+
+-- 🔹 Eliminar movimientos de inventario
+DELETE FROM movimiento_stock;
+
+-- 🔹 Eliminar ubicaciones físicas por celda
+DELETE FROM detalle_producto_celda;
+
+-- 🔹 Eliminar relaciones de producto con ubicaciones y precios
+DELETE FROM producto_ubicacion;
+
+-- 🔹 Eliminar precios
+DELETE FROM precio;
+
+-- 🔹 Eliminar inventario
+DELETE FROM inventario;
+
+
+-- 🔹 Eliminar detalle_producto
+DELETE FROM detalle_producto;
+
+-- 🔹 Eliminar producto
+DELETE FROM producto;
+
+COMMIT;
+
+
+
+
+--seccion de elimnar duplicados
+
+-- 1. Eliminar alias de productos duplicados
+WITH duplicados AS (
+  SELECT 
+    p1.id AS producto_ok,
+    p2.id AS producto_duplicado
+  FROM producto p1
+  JOIN detalle_producto dp1 ON dp1.producto_id = p1.id
+  JOIN etiqueta_producto ep1 ON dp1.id = ep1.detalle_producto_id
+  JOIN producto p2 ON p1.nombre = p2.nombre AND p1.id < p2.id
+  JOIN detalle_producto dp2 ON dp2.producto_id = p2.id
+  JOIN etiqueta_producto ep2 ON dp2.id = ep2.detalle_producto_id
+  WHERE ep1.alias = ep2.alias
+)
+DELETE FROM etiqueta_producto
+WHERE detalle_producto_id IN (
+  SELECT dp.id
+  FROM detalle_producto dp
+  JOIN duplicados d ON dp.producto_id = d.producto_duplicado
+);
+
+-- 2. Eliminar precios
+WITH duplicados AS (
+  SELECT 
+    p1.id AS producto_ok,
+    p2.id AS producto_duplicado
+  FROM producto p1
+  JOIN detalle_producto dp1 ON dp1.producto_id = p1.id
+  JOIN etiqueta_producto ep1 ON dp1.id = ep1.detalle_producto_id
+  JOIN producto p2 ON p1.nombre = p2.nombre AND p1.id < p2.id
+  JOIN detalle_producto dp2 ON dp2.producto_id = p2.id
+  JOIN etiqueta_producto ep2 ON dp2.id = ep2.detalle_producto_id
+  WHERE ep1.alias = ep2.alias
+)
+DELETE FROM precio
+WHERE detalle_producto_id IN (
+  SELECT dp.id
+  FROM detalle_producto dp
+  JOIN duplicados d ON dp.producto_id = d.producto_duplicado
+);
+
+-- 3. Eliminar inventario
+WITH duplicados AS (
+  SELECT 
+    p1.id AS producto_ok,
+    p2.id AS producto_duplicado
+  FROM producto p1
+  JOIN detalle_producto dp1 ON dp1.producto_id = p1.id
+  JOIN etiqueta_producto ep1 ON dp1.id = ep1.detalle_producto_id
+  JOIN producto p2 ON p1.nombre = p2.nombre AND p1.id < p2.id
+  JOIN detalle_producto dp2 ON dp2.producto_id = p2.id
+  JOIN etiqueta_producto ep2 ON dp2.id = ep2.detalle_producto_id
+  WHERE ep1.alias = ep2.alias
+)
+DELETE FROM inventario
+WHERE detalle_producto_id IN (
+  SELECT dp.id
+  FROM detalle_producto dp
+  JOIN duplicados d ON dp.producto_id = d.producto_duplicado
+);
+
+-- 4. Eliminar producto_ubicacion
+WITH duplicados AS (
+  SELECT 
+    p1.id AS producto_ok,
+    p2.id AS producto_duplicado
+  FROM producto p1
+  JOIN detalle_producto dp1 ON dp1.producto_id = p1.id
+  JOIN etiqueta_producto ep1 ON dp1.id = ep1.detalle_producto_id
+  JOIN producto p2 ON p1.nombre = p2.nombre AND p1.id < p2.id
+  JOIN detalle_producto dp2 ON dp2.producto_id = p2.id
+  JOIN etiqueta_producto ep2 ON dp2.id = ep2.detalle_producto_id
+  WHERE ep1.alias = ep2.alias
+)
+DELETE FROM producto_ubicacion
+WHERE detalle_producto_id IN (
+  SELECT dp.id
+  FROM detalle_producto dp
+  JOIN duplicados d ON dp.producto_id = d.producto_duplicado
+);
+
+-- 5. Eliminar detalle_producto
+WITH duplicados AS (
+  SELECT 
+    p1.id AS producto_ok,
+    p2.id AS producto_duplicado
+  FROM producto p1
+  JOIN detalle_producto dp1 ON dp1.producto_id = p1.id
+  JOIN etiqueta_producto ep1 ON dp1.id = ep1.detalle_producto_id
+  JOIN producto p2 ON p1.nombre = p2.nombre AND p1.id < p2.id
+  JOIN detalle_producto dp2 ON dp2.producto_id = p2.id
+  JOIN etiqueta_producto ep2 ON dp2.id = ep2.detalle_producto_id
+  WHERE ep1.alias = ep2.alias
+)
+DELETE FROM detalle_producto
+WHERE producto_id IN (
+  SELECT producto_duplicado FROM duplicados
+);
+
+-- 6. Eliminar producto duplicado
+WITH duplicados AS (
+  SELECT 
+    p1.id AS producto_ok,
+    p2.id AS producto_duplicado
+  FROM producto p1
+  JOIN detalle_producto dp1 ON dp1.producto_id = p1.id
+  JOIN etiqueta_producto ep1 ON dp1.id = ep1.detalle_producto_id
+  JOIN producto p2 ON p1.nombre = p2.nombre AND p1.id < p2.id
+  JOIN detalle_producto dp2 ON dp2.producto_id = p2.id
+  JOIN etiqueta_producto ep2 ON dp2.id = ep2.detalle_producto_id
+  WHERE ep1.alias = ep2.alias
+)
+DELETE FROM producto
+WHERE id IN (
+  SELECT producto_duplicado FROM duplicados
+);
