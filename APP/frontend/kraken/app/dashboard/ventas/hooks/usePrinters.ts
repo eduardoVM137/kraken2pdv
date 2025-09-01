@@ -12,7 +12,7 @@ const PREFERRED_NAME = "POS-58";
 
 // Predeterminadas habituales de Windows (para mostrar aunque QZ no las devuelva)
 const WINDOWS_DEFAULTS = [
-  "Microsoft Print to PDF",
+  "Microsoft Print to PDF","\\\\MAIN-POS\\POS-58",
   "Microsoft XPS Document Writer",
   "Fax",
   "OneNote (Desktop)",
