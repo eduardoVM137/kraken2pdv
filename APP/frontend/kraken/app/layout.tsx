@@ -6,44 +6,47 @@ import { ReactNode, useState } from "react";
 import { Toaster } from "sonner";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/Sidebar";
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet";
 import { Menu } from "lucide-react";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+  const [openMobile, setOpenMobile] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <html lang="es">
       <body className="flex h-screen">
         <SidebarProvider>
-          {/* MOBILE: trigger + drawer */}
-          <Sheet open={open} onOpenChange={setOpen}>
+          {/* MÓVIL */}
+          <Sheet open={openMobile} onOpenChange={setOpenMobile}>
             <SheetTrigger asChild>
-              <button className="fixed top-4 left-4 z-50 p-2 rounded bg-white/90 shadow-md md:hidden print:hidden" aria-label="Abrir menú">
+              <button
+                className="fixed top-4 left-4 z-50 p-2 rounded bg-white/90 shadow-md md:hidden print:hidden"
+                aria-label="Abrir menú"
+              >
                 <Menu className="h-6 w-6" />
               </button>
             </SheetTrigger>
             <SheetContent position="left" className="w-64 p-0">
-              {/* A11y: Radix requiere un título dentro del contenido */}
-              <SheetHeader className="sr-only">
-                <SheetTitle>Menú de navegación</SheetTitle>
-              </SheetHeader>
-              <AppSidebar />
+              <AppSidebar collapsed={false} onToggle={() => setOpenMobile(false)} />
             </SheetContent>
           </Sheet>
 
           {/* DESKTOP */}
-          <div className="hidden md:block">
-            <AppSidebar />
-          </div>
+  <aside
+  className={[
+    "hidden md:flex h-full border-r bg-white transition-[width] duration-200",
+    "overflow-x-hidden",           // evita desbordes horizontales
+    collapsed ? "w-14" : "w-56",   // ancho compacto y contenido exacto
+  ].join(" ")}
+>
+  <AppSidebar
+    collapsed={collapsed}
+    onToggle={() => setCollapsed(v => !v)}
+  />
+</aside>
 
-          {/* MAIN CONTENT */}
+          {/* CONTENIDO */}
           <main className="flex-1 overflow-auto">
             {children}
             <Toaster position="top-right" richColors closeButton />
