@@ -63,10 +63,10 @@ export function AppSidebar({
       </div>
 
       {/* — MENÚ — */}
-      <SidebarContent className="flex-1 pl-2 pr-0 py-4">
+      <SidebarContent className="flex-1 px-2 py-4">
         <SidebarMenu>
           {MENU.map(({ href, label, icon: Icon, group }, idx) => {
-            const active = pathname === href;
+            const active    = pathname === href;
             const sepBefore = group === "settings";
 
             return (
@@ -78,7 +78,7 @@ export function AppSidebar({
                       href={href}
                       title={collapsed ? label : undefined}
                       className={[
-                        "w-full flex items-center rounded-lg transition-colors",
+                        "flex items-center rounded-lg transition-colors",
                         collapsed ? "justify-center p-2" : "gap-3 px-3 py-2",
                         active
                           ? "bg-gray-800 text-white"
@@ -86,6 +86,7 @@ export function AppSidebar({
                       ].join(" ")}
                     >
                       <Icon className="w-6 h-6 flex-shrink-0" />
+                      {/* Importante: ocultar el label (no solo opacidad) para que no reserve ancho */}
                       {!collapsed && <span className="flex-1">{label}</span>}
                     </Link>
                   </SidebarMenuButton>
@@ -96,18 +97,16 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarContent>
 
-      {/* — FOOTER: Perfil — */}
-      <div className="pl-2 pr-0 pb-4 border-t">
+      {/* — FOOTER — */}
+      <div className="px-2 pb-4 border-t">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild>
               <Link
                 href="/dashboard/perfil"
                 title={collapsed ? "Mi perfil" : undefined}
-                className={[
-                  "w-full flex items-center rounded-lg text-gray-700 hover:bg-gray-100",
-                  collapsed ? "justify-center p-2" : "gap-3 px-3 py-2",
-                ].join(" ")}
+                className={["flex items-center rounded-lg text-gray-700 hover:bg-gray-100",
+                            collapsed ? "justify-center p-2" : "gap-3 px-3 py-2"].join(" ")}
               >
                 <SettingsIcon className="w-6 h-6" />
                 {!collapsed && <span>Mi perfil</span>}
