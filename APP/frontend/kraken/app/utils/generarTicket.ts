@@ -115,9 +115,9 @@ lineas.push(`${detalle}\t${totalItem}`);
     }
   }
 
-  lineas.push(repeat());
   lineas.push(center(isCotizacion ? "Esta es una COTIZACION" : "Gracias por su compra"));
-  lineas.push(" ");
+  lineas.push("\n");
 
+  lineas.push(repeat());
   return lineas;
 }
