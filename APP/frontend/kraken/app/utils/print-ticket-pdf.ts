@@ -1,12 +1,8 @@
 // utils/print-ticket-pdf.ts
+// Motor HTML (recomendado) + fallback jsPDF (opcional)
 import jsPDF from "jspdf";
 
-/** Limpia y compacta el arreglo de líneas:
- *  - normaliza CRLF
- *  - elimina espacios a la derecha
- *  - colapsa líneas vacías consecutivas
- *  - quita blanco al inicio/fin
- */
+/** Limpia/compacta igual que antes */
 export function compactPOSLines(lines: string[]): string[] {
   const norm = (lines ?? []).map((l) => (l ?? "").replace(/\r/g, "").replace(/\s+$/g, ""));
   const out: string[] = [];
@@ -22,36 +18,79 @@ export function compactPOSLines(lines: string[]): string[] {
 }
 
 export type ExportOpts = {
-  /** Ancho del rollo en mm (58 u 80) */
-  widthMm?: number;
-  /** Márgenes y tipografía */
-  left?: number;
-  right?: number;
-  top?: number;
-  fontSize?: number;
-  lineH?: number;
-  emptyH?: number;
-  /** Separación entre left y right cuando hay TAB (en mm) */
-  tabGapMm?: number;
-  /** Nombre de archivo */
+  widthMm?: number;           // 58 u 80
+  left?: number;              // jsPDF only
+  right?: number;             // jsPDF only
+  top?: number;               // jsPDF only
+  fontSize?: number;          // jsPDF only
+  lineH?: number;             // jsPDF only
+  emptyH?: number;            // jsPDF only
+  tabGapMm?: number;          // jsPDF only
   fileName?: string;
-  /** Abrir en pestaña (blob URL) en lugar de descargar */
   openInsteadOfDownload?: boolean;
+  /** Usa motor HTML con @page size (true por defecto). Si lo desactivas, usa jsPDF. */
+  htmlEngine?: boolean;
+  /** Ajuste de tamaño de fuente para HTML (por defecto 11px) */
+  htmlFontPx?: number;
+  /** Márgenes de página para HTML (por defecto 0) */
+  htmlMarginMm?: number;
 };
 
-/** Firma unificada:
- *  - exportTicketPDF(lines, "ticket.pdf")
- *  - exportTicketPDF(lines, { widthMm: 58, fileName: "ticket.pdf", ... })
- */
-export function exportTicketPDF(
-  lines: string[],
-  arg?: string | ExportOpts,
-  maybeOpts?: ExportOpts
-) {
-  const opts: ExportOpts =
-    typeof arg === "string" ? { ...(maybeOpts ?? {}), fileName: arg } : (arg ?? {});
+const escapeHtml = (s: string) =>
+  s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
 
+/** Exporta ticket a PDF de ancho exacto en mm.
+ *  - Por defecto usa el motor HTML (@page size: 58mm/80mm).
+ *  - Si htmlEngine=false, usa tu implementación jsPDF de siempre.
+ */
+export function exportTicketPDF(lines: string[], arg?: string | ExportOpts, maybe?: ExportOpts) {
+  const opts: ExportOpts = typeof arg === "string" ? { ...(maybe ?? {}), fileName: arg } : (arg ?? {});
   const width = opts.widthMm ?? 58;
+  const fileName = opts.fileName ?? "ticket.pdf";
+  const openInstead = !!opts.openInsteadOfDownload;
+  const useHTML = opts.htmlEngine !== false; // default: true
+  const text = Array.isArray(lines) ? lines.join("\n") : String(lines ?? "");
+
+  if (useHTML) {
+    const html = `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>${escapeHtml(fileName)}</title>
+<style>
+  @page { size: ${width}mm auto; margin: ${opts.htmlMarginMm ?? 0}mm; }
+  html, body { width: ${width}mm; margin: 0; padding: 0; }
+  * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  body {
+    font-family: "Courier New", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  }
+  pre {
+    font-size: ${opts.htmlFontPx ?? 11}px;
+    line-height: 1.25;
+    white-space: pre-wrap; /* conserva saltos, permite envolver */
+    margin: 0;
+    padding: 0;
+  }
+</style>
+</head>
+<body>
+  <pre>${escapeHtml(text)}</pre>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    if (openInstead) {
+      const w = window.open(url, "_blank", "noopener,noreferrer");
+      if (!w) forceDownload(url, fileName);
+      return;
+    }
+    forceDownload(url, fileName);
+    return;
+  }
+
+  // ======= Fallback jsPDF (tu lógica original) =======
   const left = opts.left ?? 4;
   const right = opts.right ?? 4;
   const top = opts.top ?? 8;
@@ -59,12 +98,8 @@ export function exportTicketPDF(
   const lineH = opts.lineH ?? 4;
   const emptyH = opts.emptyH ?? 2.5;
   const tabGap = opts.tabGapMm ?? 1.5;
-  const fileName = opts.fileName ?? "ticket.pdf";
-  const openInstead = !!opts.openInsteadOfDownload;
 
   const clean = compactPOSLines(lines);
-
-  // ====== PRE-CÁLCULO DE ALTURA (emula el render real) ======
   const tmp = new jsPDF({ unit: "mm", format: [width, 1000] });
   tmp.setFont("courier", "normal");
   tmp.setFontSize(fs);
@@ -73,34 +108,17 @@ export function exportTicketPDF(
   let height = top;
   for (const raw of clean) {
     const line = (raw ?? "").replace(/\r/g, "");
-    if (line.trim() === "") {
-      height += emptyH;
-      continue;
-    }
-
+    if (line.trim() === "") { height += emptyH; continue; }
     if (line.includes("\t")) {
-      const [leftText = "", rightText = ""] = line.split("\t");
-      const wLeft = tmp.getTextWidth(leftText);
-      const wRight = tmp.getTextWidth(rightText);
-
-      // ¿cabe en una sola línea (left + gap + right)?
-      if (wLeft + tabGap + wRight <= maxW) {
-        height += lineH;
-      } else {
-        // Envuelve left y luego una línea para right
-        const wrappedLeft = tmp.splitTextToSize(leftText, maxW);
-        height += wrappedLeft.length * lineH; // left envuelto
-        height += lineH; // línea para right alineado a la derecha
-      }
+      const [l = "", r = ""] = line.split("\t");
+      const wL = tmp.getTextWidth(l), wR = tmp.getTextWidth(r);
+      height += wL + tabGap + wR <= maxW ? lineH : (tmp.splitTextToSize(l, maxW).length * lineH + lineH);
     } else {
-      const wrapped = tmp.splitTextToSize(line, maxW);
-      height += wrapped.length * lineH;
+      height += (tmp.splitTextToSize(line, maxW).length * lineH);
     }
   }
-  height += 6; // margen inferior
-  height = Math.max(80, height);
+  height = Math.max(80, height + 6);
 
-  // ====== DOCUMENTO FINAL ======
   const doc = new jsPDF({ unit: "mm", format: [width, height], putOnlyUsedFonts: true });
   doc.setFont("courier", "normal");
   doc.setFontSize(fs);
@@ -108,57 +126,31 @@ export function exportTicketPDF(
   let y = top;
   for (const raw of clean) {
     const line = (raw ?? "").replace(/\r/g, "");
-    if (line.trim() === "") {
-      y += emptyH;
-      continue;
-    }
-
-    // --- Línea con TAB: "<left>\t<right>" ---
+    if (line.trim() === "") { y += emptyH; continue; }
     if (line.includes("\t")) {
-      const [leftText = "", rightText = ""] = line.split("\t");
-      const wLeft = doc.getTextWidth(leftText);
-      const wRight = doc.getTextWidth(rightText);
-
-      if (wLeft + tabGap + wRight <= maxW) {
-        // Misma línea: left normal y right alineado al borde derecho
-        doc.text(leftText, left, y, { baseline: "top" });
-        doc.text(rightText, left + maxW, y, {
-          baseline: "top",
-          align: "right" as any,
-        });
+      const [l = "", r = ""] = line.split("\t");
+      const wL = doc.getTextWidth(l), wR = doc.getTextWidth(r);
+      if (wL + tabGap + wR <= maxW) {
+        doc.text(l, left, y, { baseline: "top" });
+        doc.text(r, left + maxW, y, { baseline: "top", align: "right" as any });
         y += lineH;
       } else {
-        // Dos líneas: envolver left y luego right alineado a la derecha
-        const wrappedLeft = doc.splitTextToSize(leftText, maxW);
-        for (const w of wrappedLeft) {
-          doc.text(w, left, y, { baseline: "top" });
-          y += lineH;
-        }
-        doc.text(rightText, left + maxW, y, {
-          baseline: "top",
-          align: "right" as any,
-        });
-        y += lineH;
+        for (const w of doc.splitTextToSize(l, maxW)) { doc.text(w, left, y, { baseline: "top" }); y += lineH; }
+        doc.text(r, left + maxW, y, { baseline: "top", align: "right" as any }); y += lineH;
       }
       continue;
     }
-
-    // --- Línea normal (sin TAB) ---
-    const wrapped = doc.splitTextToSize(line, maxW);
-    for (const w of wrapped) {
-      doc.text(w, left, y, { baseline: "top" });
-      y += lineH;
-    }
+    for (const w of doc.splitTextToSize(line, maxW)) { doc.text(w, left, y, { baseline: "top" }); y += lineH; }
   }
 
   if (openInstead) {
-    const blob = doc.output("blob");
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-    // Si quisieras además descargar, descomenta:
-    // doc.save(fileName);
-  } else {
-    doc.save(fileName);
-  }
+    const blob = doc.output("blob"); const url = URL.createObjectURL(blob);
+    window.open(url, "_blank"); return;
+  } else doc.save(fileName);
 }
 
+function forceDownload(url: string, fileName: string) {
+  const a = document.createElement("a");
+  a.href = url; a.download = fileName; document.body.appendChild(a);
+  a.click(); a.remove(); URL.revokeObjectURL(url);
+}

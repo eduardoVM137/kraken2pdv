@@ -50,17 +50,6 @@ const padRightLine = (left: string, right: string, width = WIDTH) => {
   return L + " ".repeat(spaces) + R;
 };
 
-/**
- * Si cabe en una sola línea, devuelve [ "detalle .... total" ].
- * Si NO cabe, devuelve dos líneas: [ "detalle", " ......... total" ] con el total alineado a la derecha.
- */
-const detalleConSubtotal = (detalle: string, totalItem: string, width = WIDTH): string[] => {
-  if ((detalle?.length ?? 0) + 1 + (totalItem?.length ?? 0) <= width) {
-    return [padRightLine(detalle, totalItem, width)];
-  }
-  // muy largo -> dos líneas (total alineado a la derecha)
-  return [detalle, totalItem.padStart(width)];
-};
 
 /* ---------- API ---------- */
 
@@ -128,6 +117,7 @@ lineas.push(`${detalle}\t${totalItem}`);
 
   lineas.push(repeat());
   lineas.push(center(isCotizacion ? "Esta es una COTIZACION" : "Gracias por su compra"));
+  lineas.push(" ");
 
   return lineas;
 }
