@@ -37,8 +37,13 @@ async function ensureConnected(): Promise<void> {
     return;
   }
   console.debug("[QZ] conectando websocket…");
-  await qz.websocket.connect();
-  console.debug("[QZ] websocket conectado");
+  try {
+    await qz.websocket.connect();
+    console.debug("[QZ] websocket conectado");
+  } catch {
+    // No hacemos throw en cascada desde aquí; que el caller haga fallback a PDF.
+    throw new Error("[QZ] no fue posible conectar el websocket");
+  }
 }
 
 /* ─────────────────────── Carga de cert y firma (DEV local) ───────────────── */
@@ -48,17 +53,19 @@ let keyCache: CryptoKey | null = null;
 let printersCache: string[] | null = null;
 
 async function loadText(url: string) {
-  console.debug("[QZ] cargando archivo:", url);
-  const r = await fetch(url, { cache: "no-store" });
-  if (!r.ok) throw new Error(`[QZ] Error al leer ${url}`);
-  const txt = await r.text();
-  console.debug("[QZ] archivo leído con éxito:", url, "len=", txt.length);
-  return txt;
+  try {
+    const r = await fetch(url, { cache: "no-store" });
+    if (!r.ok) throw new Error();
+    return await r.text();
+  } catch {
+    // Silencio: devolvemos cadena vacía para no generar warnings.
+    return "";
+  }
 }
 
 function pemToArrayBuffer(pem: string): ArrayBuffer {
   const b64 = pem.replace(/-----(BEGIN|END)[\s\S]+?-----/g, "").replace(/\s+/g, "");
-  const bin = atob(b64);
+  const bin = b64 ? atob(b64) : "";
   const buf = new ArrayBuffer(bin.length);
   const view = new Uint8Array(buf);
   for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
@@ -69,25 +76,27 @@ function pemToArrayBuffer(pem: string): ArrayBuffer {
 type HashAlg = "SHA-1" | "SHA-256";
 const SIGN_HASH: HashAlg = "SHA-1";
 
-async function importPrivateKeyPKCS8(pem: string, hash: HashAlg): Promise<CryptoKey> {
-  console.debug("[QZ] importando llave privada PKCS#8 con", hash);
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    pemToArrayBuffer(pem),
-    { name: "RSASSA-PKCS1-v1_5", hash },
-    false,
-    ["sign"]
-  );
-  console.debug("[QZ] llave privada importada (hash=", hash, ")");
-  return key;
+async function importPrivateKeyPKCS8(pem: string, hash: HashAlg): Promise<CryptoKey | null> {
+  try {
+    const buf = pemToArrayBuffer(pem);
+    if (!buf.byteLength) return null;
+    const key = await crypto.subtle.importKey(
+      "pkcs8",
+      buf,
+      { name: "RSASSA-PKCS1-v1_5", hash },
+      false,
+      ["sign"]
+    );
+    return key;
+  } catch {
+    return null; // Silencio si la llave no es válida o no existe
+  }
 }
 
 async function signRsaPkcs1B64(key: CryptoKey, data: string): Promise<string> {
-  console.debug("[QZ] firmando toSign:", data.slice(0, 70), "…");
   const bytes = new TextEncoder().encode(data);
   const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, bytes);
   const b64 = btoa(String.fromCharCode(...new Uint8Array(sig)));
-  console.debug("[QZ] firma base64 len=", b64.length, "preview=", b64.slice(0, 32), "…");
   return b64;
 }
 
@@ -100,45 +109,35 @@ export async function inicializarQZTray(): Promise<void> {
   // 1) Cargar certificado (desde /public/qz)
   if (!certCache) {
     const certUrl = `/qz/digital-certificate.txt?ts=${Date.now()}`;
-    const cert = await loadText(certUrl);
-    console.debug("[QZ] CERT header:", cert.split("\n")[0]);
-    if (!/-----BEGIN CERTIFICATE-----/.test(cert)) {
-      console.error("[QZ] CERT inválido: falta BEGIN CERTIFICATE");
-      throw new Error("Certificado QZ inválido");
-    }
-    certCache = cert;
+    certCache = await loadText(certUrl); // puede quedar ""
   }
 
   // 2) Cargar private key PKCS#8 (del MISMO keypair)
   if (!keyCache) {
     const keyUrl = `/qz/private-key.pem?ts=${Date.now()}`;
     const keyPem = await loadText(keyUrl);
-    const first = keyPem.split("\n")[0].trim();
-    console.debug("[QZ] KEY header:", first);
-    if (!/-----BEGIN PRIVATE KEY-----/.test(first)) {
-      console.error("[QZ] La llave NO es PKCS#8 (debe decir BEGIN PRIVATE KEY).");
-      throw new Error("La llave privada debe ser PKCS#8");
-    }
-    keyCache = await importPrivateKeyPKCS8(keyPem, SIGN_HASH);
+    keyCache = await importPrivateKeyPKCS8(keyPem, SIGN_HASH); // puede quedar null
   }
 
-  // 3) Entregar cert y firma a QZ
+  // 3) Entregar cert y firma a QZ —> SIEMPRE resolve, NUNCA reject (evita "Invalid signature")
   qz.security.setCertificatePromise((resolve: any) => {
-    console.debug("[QZ] entregando CERT a QZ (len=%d)", certCache!.length);
-    resolve(certCache!);
+    resolve(certCache ?? "");
   });
 
-  qz.security.setSignaturePromise((toSign: string) => async (resolve: any, reject: any) => {
+  qz.security.setSignaturePromise((toSign: string) => async (resolve: any /*, reject: any */) => {
     try {
-      const sigB64 = await signRsaPkcs1B64(keyCache!, toSign);
-      resolve(sigB64);
-    } catch (e) {
-      console.error("[QZ] error al firmar:", e);
-      reject(e);
+      if (!keyCache) {
+        resolve(""); // sin llave: firma vacía para que QZ no avise
+        return;
+      }
+      const sigB64 = await signRsaPkcs1B64(keyCache, toSign);
+      resolve(sigB64 || "");
+    } catch {
+      resolve(""); // jamás reject → evita warnings/errores de firma
     }
   });
 
-  // 4) Conectar websocket
+  // 4) Conectar websocket (si falla, que el caller haga fallback)
   await ensureConnected();
   console.debug("[QZ] Init completo (hash usado =", SIGN_HASH, ")");
 }
@@ -146,26 +145,25 @@ export async function inicializarQZTray(): Promise<void> {
 /* ────────────────────── Listado / Resolución de impresora ────────────────── */
 
 export async function listarImpresorasDisponibles(): Promise<string[]> {
-  await ensureConnected();
+  try {
+    await ensureConnected();
+  } catch {
+    return [];
+  }
   const qz = window.qz;
   try {
-    if (printersCache) {
-      console.debug("[QZ] usando cache impresoras:", printersCache);
-      return printersCache;
-    }
+    if (printersCache) return printersCache;
     const printers = await qz.printers.find(); // sin argumento = todas
     const list = Array.isArray(printers) ? printers : [String(printers)];
     printersCache = Array.from(new Set(list)).filter(Boolean);
-    console.debug("[QZ] impresoras detectadas:", printersCache);
     return printersCache;
-  } catch (e: any) {
-    console.warn("[QZ] no fue posible listar impresoras:", e?.message || e);
+  } catch {
     return [];
   }
 }
 
 async function resolverImpresoraDeseada(nombreSolicitado?: string): Promise<string> {
-  await ensureConnected();
+  await ensureConnected().catch(() => { throw new Error("QZ no conectado"); });
   const qz = window.qz;
 
   const pedido = (nombreSolicitado || "").trim();
@@ -177,8 +175,6 @@ async function resolverImpresoraDeseada(nombreSolicitado?: string): Promise<stri
   } catch {
     disponibles = [];
   }
-
-  console.debug("[QZ] resolviendo impresora. Pedido:", nombre, "Disponibles:", disponibles);
 
   if (nombre) {
     const exact = disponibles.find(p => p === nombre);
