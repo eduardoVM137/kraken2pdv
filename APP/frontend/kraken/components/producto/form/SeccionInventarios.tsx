@@ -1,39 +1,22 @@
-// frontend/components/producto/form/SeccionInventarios.tsx
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useFieldArray, useFormContext, useWatch } from "react-hook-form";
+import { ProductoFormData } from "./FormularioProducto";
+
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
+  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  PackageSearch,
-  AlertTriangle,
-  DollarSign,
-  Truck,
-  LayoutGrid,
-  Hash,
-  X,
-  Check,
+  PackageSearch, AlertTriangle, DollarSign, Truck, LayoutGrid, Hash, X, Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ProductoFormData } from "./FormularioProducto";
 import { ComboboxSelect } from "@/components/ui/ComboboxSelect";
 import {
-  AlertDialog,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
+  AlertDialog, AlertDialogTrigger, AlertDialogContent, AlertDialogHeader,
+  AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 
@@ -49,23 +32,28 @@ const Field = ({ label, icon, children }: { label: string; icon: React.ReactElem
   </div>
 );
 
-export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setValue }: { inv: any; idVirtual: string; inventarios: any[]; setValue: any }) => {
+export const SeccionInventarios = ({
+  inv: propInv, idVirtual, inventarios, setValue,
+}: { inv: any; idVirtual: string; inventarios: any[]; setValue: any }) => {
   const { control } = useFormContext<ProductoFormData>();
-  const invIndex = inventarios.findIndex(i => i.idVirtual === idVirtual);
-  const inv = invIndex !== -1
-    ? inventarios[invIndex]
-    : propInv
+  const invIndex = useMemo(() => inventarios.findIndex(i => i.idVirtual === idVirtual), [inventarios, idVirtual]);
+  const inv = invIndex !== -1 ? inventarios[invIndex] : propInv;
+
   const [proveedores, setProveedores] = useState<any[]>([]);
   const [contenedores, setContenedores] = useState<any[]>([]);
   const [celdas, setCeldas] = useState<any[]>([]);
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [confirmIdx, setConfirmIdx] = useState<number | null>(null);
-  const [draftContId, setDraftContId] = useState("");
-  const [draftCelId, setDraftCelId] = useState("");
-  const [draftQty, setDraftQty] = useState("");
+
+  // borrador edición
+  const [draftContId, setDraftContId] = useState<string>("");
+  const [draftCelId, setDraftCelId] = useState<string>(""); // opcional
+  const [draftQty, setDraftQty] = useState<string>("");
+
+  // alta nueva celda
   const [newCelda, setNewCelda] = useState(false);
   const [newContId, setNewContId] = useState<number | null>(null);
-  const [newCelId, setNewCelId] = useState<number | null>(null);
+  const [newCelId, setNewCelId] = useState<number | null>(null); // opcional
   const [newQty, setNewQty] = useState<number | null>(null);
   const [newError, setNewError] = useState(false);
 
@@ -82,14 +70,14 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
     });
   }, []);
 
+  // RHF: celdas del inventario actual
   const { fields: celdaFields, append, remove, update } = useFieldArray({
     control,
-    name: `inventarios.${inventarios.findIndex((i) => i.idVirtual === idVirtual)}.celdas`,
+    name: `inventarios.${invIndex}.celdas`,
   });
+  const values = useWatch({ control, name: `inventarios.${invIndex}.celdas` });
 
-  const values = useWatch({ control, name: `inventarios.${inventarios.findIndex((i) => i.idVirtual === idVirtual)}.celdas` });
-
-  const updateInv = (key: string, value: number) => {
+  const updateInv = (key: string, value: number | null | undefined) => {
     setValue(
       "inventarios",
       inventarios.map((i) => (i.idVirtual === idVirtual ? { ...i, [key]: value } : i))
@@ -97,10 +85,11 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
   };
 
   const saveEdit = () => {
-    if (editIdx === null || !draftContId || !draftCelId || draftQty === "") return;
+    // contenedor y cantidad obligatorios; celda opcional
+    if (editIdx === null || !draftContId || draftQty === "") return;
     update(editIdx, {
       contenedor_fisico_id: Number(draftContId),
-      celda_id: Number(draftCelId),
+      celda_id: draftCelId ? Number(draftCelId) : null,
       cantidad: Number(draftQty),
     });
     setEditIdx(null);
@@ -118,19 +107,34 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white rounded-xl p-6 shadow-md border">
         <Field label="Stock actual (Unidades)" icon={<PackageSearch />}>
-          <Input type="number" value={inv?.stock_actual?.toString() ?? ""} className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm" onChange ={(e) => updateInv("stock_actual", Number(e.target.value))} />
+          <Input
+            type="number"
+            value={inv?.stock_actual?.toString() ?? ""}
+            className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm"
+            onChange={(e) => updateInv("stock_actual", Number(e.target.value))}
+          />
         </Field>
         <Field label="Stock mínimo (Alerta)" icon={<AlertTriangle />}>
-          <Input type="number" value={inv?.stock_minimo?.toString() ?? ""} className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm" onChange ={(e) => updateInv("stock_minimo", Number(e.target.value))} />
+          <Input
+            type="number"
+            value={inv?.stock_minimo?.toString() ?? ""}
+            className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm"
+            onChange={(e) => updateInv("stock_minimo", Number(e.target.value))}
+          />
         </Field>
         <Field label="Precio costo (MXN)" icon={<DollarSign />}>
-          <Input type="number" value={inv?.precio_costo?.toString() ?? ""} className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm" onChange ={(e) => updateInv("precio_costo", Number(e.target.value))} />
+          <Input
+            type="number"
+            value={inv?.precio_costo?.toString() ?? ""}
+            className="pl-10 h-11 rounded-lg border-muted bg-muted/30 text-sm"
+            onChange={(e) => updateInv("precio_costo", Number(e.target.value))}
+          />
         </Field>
         <Field label="Proveedor asociado" icon={<Truck />}>
           <ComboboxSelect
             options={proveedores.map((p) => ({ label: p.nombre, value: p.id.toString() }))}
             selected={inv?.proveedor_id?.toString() ?? ""}
-            onChange={(val) => updateInv("proveedor_id", Number(val))}
+            onChange={(val) => updateInv("proveedor_id", val ? Number(val) : null)}
           />
         </Field>
       </div>
@@ -140,8 +144,9 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
           <AccordionTrigger className="text-sm">Ubicaciones de celdas</AccordionTrigger>
           <AccordionContent className="space-y-4 pt-4">
             {celdaFields.map((celda, idx) => {
-              const cont = contenedores.find((c) => c.id === values?.[idx]?.contenedor_fisico_id);
-              const cel = celdas.find((c) => c.id === values?.[idx]?.celda_id);
+              const curr = values?.[idx];
+              const cont = contenedores.find((c) => c.id === curr?.contenedor_fisico_id);
+              const cel = celdas.find((c) => c.id === curr?.celda_id);
 
               return editIdx === idx ? (
                 <div key={celda.id} className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 border rounded-lg bg-muted/20">
@@ -152,7 +157,7 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
                       onChange={setDraftContId}
                     />
                   </Field>
-                  <Field label="Celda interna" icon={<Hash />}>
+                  <Field label="Celda interna (opcional)" icon={<Hash />}>
                     <ComboboxSelect
                       options={celdas.map((c) => ({ label: `Fila ${c.fila} - Col ${c.columna}`, value: c.id.toString() }))}
                       selected={draftCelId}
@@ -173,16 +178,23 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
                   key={celda.id}
                   className="flex items-center justify-between bg-muted/30 px-4 py-2 rounded-lg border"
                 >
-                  <div onClick={() => {
-                    if (confirmIdx !== null) return;
-                    setEditIdx(idx);
-                    setDraftContId(values?.[idx]?.contenedor_fisico_id?.toString() ?? "");
-                    setDraftCelId(values?.[idx]?.celda_id?.toString() ?? "");
-                    setDraftQty(values?.[idx]?.cantidad?.toString() ?? "");
-                  }} className="flex-1 cursor-pointer">
-                    <div className="text-sm font-medium">{cont?.nombre ?? `Contenedor ${values?.[idx]?.contenedor_fisico_id}`}</div>
-                    <div className="text-xs text-muted-foreground">Celda: Fila {cel?.fila} - Columna {cel?.columna}</div>
-                    <div className="text-xs text-muted-foreground">Cantidad: {values?.[idx]?.cantidad ?? 0}</div>
+                  <div
+                    onClick={() => {
+                      if (confirmIdx !== null) return;
+                      setEditIdx(idx);
+                      setDraftContId(curr?.contenedor_fisico_id?.toString() ?? "");
+                      setDraftCelId(curr?.celda_id?.toString() ?? ""); // opcional
+                      setDraftQty(curr?.cantidad?.toString() ?? "");
+                    }}
+                    className="flex-1 cursor-pointer"
+                  >
+                    <div className="text-sm font-medium">
+                      {cont?.nombre ?? (curr?.contenedor_fisico_id ? `Contenedor ${curr.contenedor_fisico_id}` : "Sin contenedor")}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {curr?.celda_id ? `Celda: Fila ${cel?.fila} - Columna ${cel?.columna}` : "Sin celda"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Cantidad: {curr?.cantidad ?? 0}</div>
                   </div>
                   <AlertDialog open={confirmIdx === idx} onOpenChange={(open) => !open && setConfirmIdx(null)}>
                     <AlertDialogTrigger asChild>
@@ -216,7 +228,7 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
                     onChange={(val) => setNewContId(Number(val))}
                   />
                 </Field>
-                <Field label="Celda interna" icon={<Hash />}>
+                <Field label="Celda interna (opcional)" icon={<Hash />}>
                   <ComboboxSelect
                     options={celdas.map((c) => ({ label: `Fila ${c.fila} - Col ${c.columna}`, value: c.id.toString() }))}
                     selected={newCelId?.toString() ?? ""}
@@ -232,18 +244,24 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
                   />
                 </Field>
                 {newError && (
-                  <p className="text-sm text-destructive col-span-full">Todos los campos deben estar completos y la cantidad debe ser mayor o igual a 0</p>
+                  <p className="text-sm text-destructive col-span-full">
+                    Completa contenedor y cantidad (celda es opcional)
+                  </p>
                 )}
                 <div className="col-span-full flex justify-end gap-2">
                   <Button type="button" variant="secondary" onClick={() => setNewCelda(false)}>Cancelar</Button>
                   <Button
                     type="button"
                     onClick={() => {
-                      if (!newContId || !newCelId || newQty === null || newQty < 0) {
+                      if (!newContId || newQty === null || newQty < 0) {
                         setNewError(true);
                         return;
                       }
-                      append({ contenedor_fisico_id: newContId, celda_id: newCelId, cantidad: newQty });
+                      append({
+                        contenedor_fisico_id: newContId,
+                        celda_id: newCelId ?? null, // opcional
+                        cantidad: newQty,
+                      });
                       setNewCelda(false);
                       setNewContId(null);
                       setNewCelId(null);
@@ -271,7 +289,7 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
                   setNewQty(null);
                   setNewError(false);
                 }}
-                disabled={contenedores.length === 0 || celdas.length === 0}
+                disabled={contenedores.length === 0}
               >
                 + Agregar ubicación
               </Button>
@@ -282,4 +300,3 @@ export const SeccionInventarios = ({ inv: propInv, idVirtual, inventarios, setVa
     </div>
   );
 };
-

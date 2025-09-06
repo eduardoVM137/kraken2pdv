@@ -62,19 +62,34 @@ const productoSchema = z.object({
     idVirtualPresentacion: z.string().optional(),
   })),
 
-  fotos: z.array(z.string().url()),
+  // Si usas rutas relativas en imágenes, cambia a .string()
+  fotos: z.array(z.string()),
 
   inventarios: z.array(z.object({
     idVirtual: z.string(),
     stock_actual: z.coerce.number(),
     stock_minimo: z.coerce.number(),
     precio_costo: z.coerce.number(),
-    ubicacion_fisica_id: z.coerce.number(),
-    proveedor_id: z.coerce.number(),
+
+    // AHORA OPCIONAL: si no lo capturas en UI, no bloquea submit
+    ubicacion_fisica_id: z.preprocess(
+      (v) => (v === '' || v === null || v === undefined ? undefined : Number(v)),
+      z.number().int().min(1, "Selecciona una ubicación").optional()
+    ),
+
+    proveedor_id: z.preprocess(
+      (v) => (v === 0 || v === '0' || v === '' ? null : Number(v)),
+      z.number().int().nullable()
+    ),
+
+    // celda_id opcional/nullable, contenedor y cantidad obligatorios
     celdas: z.array(z.object({
-      contenedor_fisico_id: z.coerce.number(),
-      celda_id: z.coerce.number(),
-      cantidad: z.coerce.number(),
+      contenedor_fisico_id: z.coerce.number().int().min(1),
+      celda_id: z.preprocess(
+        (v) => (v === '' || v === null || v === undefined ? null : Number(v)),
+        z.number().int().min(1).nullable()
+      ),
+      cantidad: z.coerce.number().min(0),
     })),
   })),
 
@@ -92,15 +107,20 @@ const productoSchema = z.object({
     descripcion: z.string().optional(),
     idVirtualPresentacion: z.string().optional(),
   })),
-producto_ubicaciones: z.array(z.object({
-  ubicacion_fisica_id: z.coerce.number(),
-  negocio_id: z.coerce.number(),
-  idVirtualInventario: z.array(z.string()),
-  idVirtualPrecio: z.array(z.string()),
-  compartir: z.boolean().optional(),
-}))
-    .min(1, "Debes agregar al menos una ubicación lógica"),
+
+  producto_ubicaciones: z.array(z.object({
+    ubicacion_fisica_id: z.preprocess(
+      (v) => (v === '' || v === null ? undefined : Number(v)),
+      z.number().int().min(1, "Selecciona una ubicación")
+    ),
+    negocio_id: z.coerce.number(),
+    idVirtualInventario: z.array(z.string()),
+    idVirtualPrecio: z.array(z.string()),
+    compartir: z.boolean().optional(),
+  }))
+  .min(1, "Debes agregar al menos una ubicación lógica"),
 });
+
 
 export type ProductoFormData = z.infer<typeof productoSchema>;
 
@@ -119,12 +139,22 @@ const transformarDataAlFormulario = (data: any): ProductoFormData => ({
   presentaciones: data.presentaciones?.map(p => ({ ...p, idVirtualPresentacion: `pres_${p.id}` })) ?? [],
   etiquetas: data.etiquetas ?? [],
   precios: data.precios?.map(p => ({ ...p, idVirtual: `price_${p.id}` })) ?? [],
-  inventarios: data.inventarios?.map(i => ({ ...i, idVirtual: `inv_${i.id}` })) ?? [],
-  producto_ubicaciones: data.ubicaciones?.map((u: any) => ({
+inventarios: (data.inventarios ?? []).map((i: any) => ({
+    ...i,
+    idVirtual: `inv_${i.id}`,
+    ubicacion_fisica_id: i.ubicacion_fisica_id ?? undefined, // ← nunca 0
+    proveedor_id: i.proveedor_id ?? null,
+    celdas: (i.celdas ?? []).map((c: any) => ({
+      contenedor_fisico_id: c.contenedor_fisico_id,
+      celda_id: c.celda_id ?? undefined, // opcional
+      cantidad: c.cantidad,
+    })),
+  })),
+producto_ubicaciones: (data.ubicaciones ?? []).map((u: any) => ({
     ...u,
-    idVirtualInventario: u.inventario_id ? `inv_${u.inventario_id}` : undefined,
-    idVirtualPrecio: u.precio_id ? `price_${u.precio_id}` : undefined,
-  })) ?? [],
+    idVirtualInventario: u.inventario_id ? [`inv_${u.inventario_id}`] : [],
+    idVirtualPrecio:     u.precio_id     ? [`price_${u.precio_id}`]   : [],
+  })),
 });
 
 export const FormularioProducto = ({ id }: { id?: number }) => {
@@ -157,29 +187,45 @@ export const FormularioProducto = ({ id }: { id?: number }) => {
     };
     load();
   }, [id, reset]);
-  
+  const sanitizeCeldas = (arr?: any[]) =>
+  (arr ?? [])
+    // filtra filas “vacías” por si el usuario agregó y no llenó nada
+    .filter(c => c && (c.contenedor_fisico_id && c.cantidad !== undefined))
+    .map(c => ({
+      celda_id: c.celda_id ? Number(c.celda_id) : null,
+      contenedor_fisico_id: Number(c.contenedor_fisico_id),
+      cantidad: Number(c.cantidad),
+    }));
+
   // Dentro de tu FormularioProducto, en el onSubmit:
 const onSubmit = async (values: ProductoFormData) => {
-  // 1) Limpiamos placeholders de inventario…
-  const inventarios = values.inventarios.filter(
-    (inv) => inv.idVirtual && inv.idVirtual !== "__NEW_INV__"
-  );
+  // 1) Fuera placeholders
+  const inventarios = values.inventarios
+    .filter(inv => inv.idVirtual && inv.idVirtual !== "__NEW_INV__")
+    .map(inv => ({
+      ...inv,
+      ubicacion_fisica_id: Number(inv.ubicacion_fisica_id), // ← garantizado por Zod
+      proveedor_id: inv.proveedor_id ?? null,
+      celdas: sanitizeCeldas(inv.celdas),
+    }));
 
-  // 2) Convertimos array → string en producto_ubicaciones
-  const producto_ubicaciones = values.producto_ubicaciones.map((u) => ({
-    ubicacion_fisica_id: u.ubicacion_fisica_id,
-    negocio_id: u.negocio_id,
+  // 2) Aplana arrays de virtuales (tu BE espera string)
+  const producto_ubicaciones = values.producto_ubicaciones.map(u => ({
+    ubicacion_fisica_id: Number(u.ubicacion_fisica_id),
+    negocio_id: Number(u.negocio_id),
     compartir: u.compartir ?? false,
-    // aquí tomamos sólo el primer elemento (o cadena vacía si no hay)
     idVirtualInventario: u.idVirtualInventario?.[0] ?? "",
-    idVirtualPrecio: u.idVirtualPrecio?.[0] ?? "",
+    idVirtualPrecio:     u.idVirtualPrecio?.[0] ?? "",
   }));
 
-  const payload = {
-    ...values,
-    inventarios,
-    producto_ubicaciones,
-  };
+  // 3) Precios limpios (evita 0)
+  const precios = values.precios.map(p => ({
+    ...p,
+    precio_venta: Number(p.precio_venta),
+    tipo_cliente_id: p.tipo_cliente_id ?? null,
+  }));
+
+  const payload = { ...values, inventarios, producto_ubicaciones, precios };
 
   try {
     const endpoint = id

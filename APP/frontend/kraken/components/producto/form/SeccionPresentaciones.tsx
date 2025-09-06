@@ -13,8 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Package, Plus, X, Check } from "lucide-react";
 import { ProductoFormData } from "./FormularioProducto";
+import { shortId, vPres } from "@/lib/generateVirtualId";
 
-const uid = (p: string) => `${p}_${crypto.randomUUID().slice(0, 8)}`;
+const uid = (p: string) => `${p}_${shortId("", 8)}`;
+
 
 export const SeccionPresentaciones = () => {
   const { control, register, setValue } = useFormContext<ProductoFormData>();

@@ -20,14 +20,16 @@ import { ComboboxSelect } from "@/components/ui/ComboboxSelect";
 import { Switch } from "@/components/ui/switch"; 
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner"; 
+import { uuid } from "@/lib/generateVirtualId";
+
 const TEMP_ID = "__NEW_INV__";
 const DEFAULT_INV = {
   idVirtual: TEMP_ID,
   stock_actual: 0,
   stock_minimo: 0,
   precio_costo: 0,
-  proveedor_id: 1,
-  ubicacion_fisica_id: 1,
+  proveedor_id: null,          // antes 1
+  ubicacion_fisica_id: undefined, // antes 1
   celdas: [],
 };
 export const SeccionUbicaciones = () => {
@@ -86,7 +88,7 @@ useEffect(() => {
   const [tempUbicacion, setTempUbicacion] = useState<any>({});
   const [selectedPrecios, setSelectedPrecios] = useState<string[]>([]);
   const [selectedInventarios, setSelectedInventarios] = useState<string[]>([]);
-
+ 
   const toggleItem = (array: string[], value: string, setter: any) => {
     if (array.includes(value)) {
       setter(array.filter((v) => v !== value));
@@ -158,7 +160,7 @@ useEffect(() => {
 
 
   const agregarPrecio = () => {
-    const id = crypto.randomUUID();
+    const id = uuid();
     appendPrecio({ idVirtual: id, precio_venta: 0, tipo_cliente_id: 1, vigente: true });
     setExpandedPrecio(id);
     if (ubicaciones.length === 1) {
@@ -170,7 +172,7 @@ useEffect(() => {
   };
 useEffect(() => {
   if (!expandedInventario && inventariosWatch.length === 0) {
-    const id = crypto.randomUUID();
+    const id = uuid();
     appendInventario({
       idVirtual: id,
       stock_actual: 0,
@@ -186,7 +188,7 @@ useEffect(() => {
 
  
   const agregarInventario = () => {
-  const id = crypto.randomUUID();
+  const id = uuid();
   appendInventario({
     idVirtual: id,
     stock_actual: 0,
@@ -483,7 +485,8 @@ const inv = inventariosWatch.find(i => i.idVirtual === expandedInventario) || {
 
           if (isNew) {
             // 1) Generar UUID solo al guardar
-            const newId = crypto.randomUUID();
+            const newId = uuid();
+
 
             // 2) Reemplazar el placeholder en RHF
             updateInventario(idx, { ...inv, idVirtual: newId });
